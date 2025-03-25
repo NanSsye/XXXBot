@@ -1,0 +1,3 @@
+[QueryPoint]
+enable = true
+command = ["查询积分", "积分", "我的积分", "积分查询"]

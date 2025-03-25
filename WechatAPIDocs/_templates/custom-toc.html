@@ -1,0 +1,17 @@
+<div class="sidebar-tree">
+    <p class="caption"><span class="caption-text">重要函数导航</span></p>
+    <ul>
+        {% for category, functions in important_functions.items() %}
+        <li class="toctree-l1">
+            <p class="caption"><span class="caption-text">{{ category }}</span></p>
+            <ul>
+                {% for title, ref in functions %}
+                <li class="toctree-l2">
+                    <a class="reference internal" href="{{ ref | safe }}">{{ title }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </li>
+        {% endfor %}
+    </ul>
+</div> 

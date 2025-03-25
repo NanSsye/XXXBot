@@ -1,0 +1,54 @@
+[WechatAPIServer]
+port = 9000                # WechatAPI服务器端口，默认9000，如有冲突可修改
+mode = "release"           # 运行模式：release(生产环境)，debug(调试模式)
+redis-host = "127.0.0.1"   # Redis服务器地址，本地使用127.0.0.1
+redis-port = 6379          # Redis端口，默认6379
+redis-password = ""        # Redis密码，如果有设置密码则填写
+redis-db = 0               # Redis数据库编号，默认0
+
+# 管理后台设置
+[Admin]
+enabled = true             # 是否启用管理后台
+host = "0.0.0.0"           # 管理后台监听地址，使用0.0.0.0允许外部访问
+port = 9090                # 管理后台端口，修改为9090
+username = "admin"         # 管理后台登录用户名
+password = "admin123"      # 管理后台登录密码
+debug = true               # 是否开启调试模式
+
+# XYBot 核心设置
+[XYBot]
+version = "v1.0.0"                    # 版本号，请勿修改
+ignore-protection = true             # 是否忽略风控保护机制，建议保持false
+
+# SQLite数据库地址，一般无需修改
+XYBotDB-url = "sqlite:///database/xybot.db"
+msgDB-url = "sqlite+aiosqlite:///database/message.db"
+keyvalDB-url = "sqlite+aiosqlite:///database/keyval.db"
+
+# 管理员设置
+admins = ["xianan96928", "wxid_lnbsshdobq7y22"]  # 管理员的wxid列表，可从消息日志中获取
+disabled-plugins = ["ExamplePlugin", "TencentLke", "DailyBot"]   # 禁用的插件列表，不需要的插件名称填在这里
+timezone = "Asia/Shanghai"             # 时区设置，中国用户使用 Asia/Shanghai
+
+# 实验性功能，如果main_config.toml配置改动，或者plugins文件夹有改动，自动重启。可以在开发时使用，不建议在生产环境使用。
+auto-restart = false                 # 仅建议在开发时启用，生产环境保持false
+
+# 消息过滤设置
+ignore-mode = "None"            # 消息处理模式：
+# "None" - 处理所有消息
+# "Whitelist" - 仅处理白名单消息
+# "Blacklist" - 屏蔽黑名单消息
+
+whitelist = [# 白名单列表
+    "xianan96928", # 个人用户微信ID
+    "wxid_lnbsshdobq7y22",
+    "47325400669@chatroom", # 群聊ID
+    "20757697988@chatroom"
+]
+
+blacklist = [# 黑名单列表
+    "wxid_3", # 个人用户微信ID
+    "wxid_4",
+    "333@chatroom", # 群聊ID
+    "444@chatroom"
+]

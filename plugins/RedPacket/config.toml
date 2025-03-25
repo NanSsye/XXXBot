@@ -1,0 +1,9 @@
+[RedPacket]
+enable = true
+command-format = """⚙️红包系统：
+发红包 积分 数量
+抢红包 口令"""
+max-point = 1000
+min-point = 1
+max-packet = 10
+max-time = 300

@@ -1,0 +1,1311 @@
+<!doctype html>
+<html class="no-js" data-content_root="../../../" lang="zh-CN">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width,initial-scale=1" name="viewport"/>
+    <meta content="light dark" name="color-scheme">
+    <link href="../../../genindex.html" rel="index" title="索引"/>
+    <link href="../../../search.html" rel="search" title="搜索"/>
+
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+    <title>WechatAPI.Client.login - XYBotV2</title>
+    <link href="../../../_static/pygments.css?v=8f2a1f02" rel="stylesheet" type="text/css"/>
+    <link href="../../../_static/styles/furo.css?v=354aac6f" rel="stylesheet" type="text/css"/>
+    <link href="../../../_static/styles/furo-extensions.css?v=302659d7" rel="stylesheet" type="text/css"/>
+
+
+    <style>
+        body {
+            --color-code-background: #f8f8f8;
+            --color-code-foreground: black;
+            --color-brand-primary: #2962ff;
+            --color-brand-content: #2962ff;
+
+        }
+
+        @media not print {
+            body[data-theme="dark"] {
+                --color-code-background: #202020;
+                --color-code-foreground: #d0d0d0;
+
+            }
+
+            @media (prefers-color-scheme: dark) {
+                body:not([data-theme="light"]) {
+                    --color-code-background: #202020;
+                    --color-code-foreground: #d0d0d0;
+
+                }
+            }
+        }
+    </style>
+</head>
+<body>
+
+<script>
+    document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+</script>
+
+
+<svg style="display: none;" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="svg-toc" viewBox="0 0 24 24">
+        <title>Contents</title>
+        <svg fill="currentColor" stroke="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+            <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+        </svg>
+    </symbol>
+    <symbol id="svg-menu" viewBox="0 0 24 24">
+        <title>Menu</title>
+        <svg class="feather-menu" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <line x1="3" x2="21" y1="12" y2="12"></line>
+            <line x1="3" x2="21" y1="6" y2="6"></line>
+            <line x1="3" x2="21" y1="18" y2="18"></line>
+        </svg>
+    </symbol>
+    <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+        <title>Expand</title>
+        <svg class="feather-chevron-right" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+    </symbol>
+    <symbol id="svg-sun" viewBox="0 0 24 24">
+        <title>Light mode</title>
+        <svg class="feather-sun" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" x2="12" y1="1" y2="3"></line>
+            <line x1="12" x2="12" y1="21" y2="23"></line>
+            <line x1="4.22" x2="5.64" y1="4.22" y2="5.64"></line>
+            <line x1="18.36" x2="19.78" y1="18.36" y2="19.78"></line>
+            <line x1="1" x2="3" y1="12" y2="12"></line>
+            <line x1="21" x2="23" y1="12" y2="12"></line>
+            <line x1="4.22" x2="5.64" y1="19.78" y2="18.36"></line>
+            <line x1="18.36" x2="19.78" y1="5.64" y2="4.22"></line>
+        </svg>
+    </symbol>
+    <symbol id="svg-moon" viewBox="0 0 24 24">
+        <title>Dark mode</title>
+        <svg class="icon-tabler-moon" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 0h24v24H0z" fill="none" stroke="none"/>
+            <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>
+        </svg>
+    </symbol>
+    <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+        <title>Auto light/dark, in light mode</title>
+        <svg class="icon-custom-derived-from-feather-sun-and-tabler-moon" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="1" viewBox="0 0 24 24"
+             xmlns="http://www.w3.org/2000/svg">
+            <path d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"
+                  style="opacity: 50%"/>
+            <line x1="14.5" x2="14.5" y1="3.25" y2="1.25"/>
+            <line x1="14.5" x2="14.5" y1="15.85" y2="17.85"/>
+            <line x1="10.044" x2="8.63" y1="5.094" y2="3.68"/>
+            <line x1="19" x2="20.414" y1="14.05" y2="15.464"/>
+            <line x1="8.2" x2="6.2" y1="9.55" y2="9.55"/>
+            <line x1="20.8" x2="22.8" y1="9.55" y2="9.55"/>
+            <line x1="10.044" x2="8.63" y1="14.006" y2="15.42"/>
+            <line x1="19" x2="20.414" y1="5.05" y2="3.636"/>
+            <circle cx="14.5" cy="9.55" r="3.6"/>
+        </svg>
+    </symbol>
+    <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+        <title>Auto light/dark, in dark mode</title>
+        <svg class="icon-custom-derived-from-feather-sun-and-tabler-moon" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="1" viewBox="0 0 24 24"
+             xmlns="http://www.w3.org/2000/svg">
+            <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+            <line style="opacity: 50%" x1="18" x2="18" y1="3.705" y2="2.5"/>
+            <line style="opacity: 50%" x1="18" x2="18" y1="11.295" y2="12.5"/>
+            <line style="opacity: 50%" x1="15.316" x2="14.464" y1="4.816" y2="3.964"/>
+            <line style="opacity: 50%" x1="20.711" x2="21.563" y1="10.212" y2="11.063"/>
+            <line style="opacity: 50%" x1="14.205" x2="13.001" y1="7.5" y2="7.5"/>
+            <line style="opacity: 50%" x1="21.795" x2="23" y1="7.5" y2="7.5"/>
+            <line style="opacity: 50%" x1="15.316" x2="14.464" y1="10.184" y2="11.036"/>
+            <line style="opacity: 50%" x1="20.711" x2="21.563" y1="4.789" y2="3.937"/>
+            <circle cx="18" cy="7.5" r="2.169" style="opacity: 50%"/>
+        </svg>
+    </symbol>
+    <symbol id="svg-pencil" viewBox="0 0 24 24">
+        <svg class="icon-tabler-pencil-code" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/>
+            <path d="M13.5 6.5l4 4"/>
+            <path d="M20 21l2 -2l-2 -2"/>
+            <path d="M17 17l-2 2l2 2"/>
+        </svg>
+    </symbol>
+    <symbol id="svg-eye" viewBox="0 0 24 24">
+        <svg class="icon-tabler-eye-code" fill="none" stroke="currentColor" stroke-linecap="round"
+             stroke-linejoin="round" stroke-width="1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 0h24v24H0z" fill="none" stroke="none"/>
+            <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/>
+            <path
+                    d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008"/>
+            <path d="M20 21l2 -2l-2 -2"/>
+            <path d="M17 17l-2 2l2 2"/>
+        </svg>
+    </symbol>
+</svg>
+
+<input class="sidebar-toggle" id="__navigation" name="__navigation" type="checkbox">
+<input class="sidebar-toggle" id="__toc" name="__toc" type="checkbox">
+<label class="overlay sidebar-overlay" for="__navigation">
+    <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+    <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+    <header class="mobile-header">
+        <div class="header-left">
+            <label class="nav-overlay-icon" for="__navigation">
+                <div class="visually-hidden">Toggle site navigation sidebar</div>
+                <i class="icon">
+                    <svg>
+                        <use href="#svg-menu"></use>
+                    </svg>
+                </i>
+            </label>
+        </div>
+        <div class="header-center">
+            <a href="../../../index.html">
+                <div class="brand">XYBotV2</div>
+            </a>
+        </div>
+        <div class="header-right">
+            <div class="theme-toggle-container theme-toggle-header">
+                <button class="theme-toggle">
+                    <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+                    <svg class="theme-icon-when-auto-light">
+                        <use href="#svg-sun-with-moon"></use>
+                    </svg>
+                    <svg class="theme-icon-when-auto-dark">
+                        <use href="#svg-moon-with-sun"></use>
+                    </svg>
+                    <svg class="theme-icon-when-dark">
+                        <use href="#svg-moon"></use>
+                    </svg>
+                    <svg class="theme-icon-when-light">
+                        <use href="#svg-sun"></use>
+                    </svg>
+                </button>
+            </div>
+            <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+                <div class="visually-hidden">Toggle table of contents sidebar</div>
+                <i class="icon">
+                    <svg>
+                        <use href="#svg-toc"></use>
+                    </svg>
+                </i>
+            </label>
+        </div>
+    </header>
+    <aside class="sidebar-drawer">
+        <div class="sidebar-container">
+
+            <div class="sidebar-sticky">
+                <div class="sidebar-scroll"><a class="sidebar-brand" href="../../../index.html">
+
+
+                    <span class="sidebar-brand-text">XYBotV2</span>
+
+                </a>
+                    <form action="../../../search.html" class="sidebar-search-container" method="get" role="search">
+                        <input aria-label="搜索" class="sidebar-search" name="q" placeholder="搜索">
+                        <input name="check_keywords" type="hidden" value="yes">
+                        <input name="area" type="hidden" value="default">
+                    </form>
+                    <div id="searchbox"></div>
+                    <div class="sidebar-tree">
+
+                    </div>
+                    <div class="sidebar-tree">
+                        <p class="caption"><span class="caption-text">重要函数导航</span></p>
+                        <ul>
+
+                            <li class="toctree-l1">
+                                <p class="caption"><span class="caption-text">登录</span></p>
+                                <ul>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.is_running">检查WechatAPI是否在运行</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.get_qr_code">获取登录二维码</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.awaken_login">二次登录(唤醒登录)</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.check_login_uuid">检查登录的UUID状态</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.get_cached_info">获取登录缓存信息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.log_out">登出当前账号</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.heartbeat">发送心跳包</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.start_auto_heartbeat">开始自动心跳</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.stop_auto_heartbeat">停止自动心跳</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.login.LoginMixin.get_auto_heartbeat_status">获取自动心跳状态</a>
+                                    </li>
+
+                                </ul>
+                            </li>
+
+                            <li class="toctree-l1">
+                                <p class="caption"><span class="caption-text">消息</span></p>
+                                <ul>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.sync_message">同步消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_text_message">发送文本消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_image_message">发送图片消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_voice_message">发送语音消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_video_message">发送视频消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_link_message">发送链接消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_card_message">发送名片消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_app_message">发送应用(xml)消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_emoji_message">发送表情消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_cdn_img_msg">转发图片消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_cdn_video_msg">转发视频消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.send_cdn_file_msg">转发文件消息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.message.MessageMixin.revoke_message">撤回消息</a>
+                                    </li>
+
+                                </ul>
+                            </li>
+
+                            <li class="toctree-l1">
+                                <p class="caption"><span class="caption-text">用户</span></p>
+                                <ul>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.user.UserMixin.get_my_qrcode">获取个人二维码</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.user.UserMixin.get_profile">获取用户信息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.user.UserMixin.is_logged_in">检查是否登录</a>
+                                    </li>
+
+                                </ul>
+                            </li>
+
+                            <li class="toctree-l1">
+                                <p class="caption"><span class="caption-text">群聊</span></p>
+                                <ul>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.chatroom.ChatroomMixin.get_chatroom_info">获取群聊信息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.chatroom.ChatroomMixin.get_chatroom_announce">获取群聊公告</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.chatroom.ChatroomMixin.get_chatroom_member_list">获取群聊成员列表</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.chatroom.ChatroomMixin.get_chatroom_qrcode">获取群聊二维码</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.chatroom.ChatroomMixin.add_chatroom_member">添加群成员(群聊最多40人)</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.chatroom.ChatroomMixin.invite_chatroom_member">邀请群聊成员(群聊大于40人)</a>
+                                    </li>
+
+                                </ul>
+                            </li>
+
+                            <li class="toctree-l1">
+                                <p class="caption"><span class="caption-text">好友</span></p>
+                                <ul>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.friend.FriendMixin.get_contact">获取联系人信息</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.friend.FriendMixin.get_contract_detail">获取联系人详情</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.friend.FriendMixin.get_contract_list">获取联系人列表</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.friend.FriendMixin.get_nickname">获取用户昵称</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.friend.FriendMixin.accept_friend">接受好友请求</a>
+                                    </li>
+
+                                </ul>
+                            </li>
+
+                            <li class="toctree-l1">
+                                <p class="caption"><span class="caption-text">红包</span></p>
+                                <ul>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.hongbao.HongBaoMixin.get_hongbao_detail">获取红包详情</a>
+                                    </li>
+
+                                </ul>
+                            </li>
+
+                            <li class="toctree-l1">
+                                <p class="caption"><span class="caption-text">工具</span></p>
+                                <ul>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.check_database">检查数据库状态</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.set_step">设置步数</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.download_image">下载高清图片</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.download_video">下载视频</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.download_voice">下载语音文件</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.download_attach">下载附件</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.base64_to_byte">base64转字节</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.base64_to_file">base64转文件</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.byte_to_base64">字节转base64</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.file_to_base64">文件转base64</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.silk_base64_to_wav_byte">silk的base64转wav字节</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.silk_byte_to_byte_wav_byte">silk字节转wav字节</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.wav_byte_to_amr_base64">WAV字节转AMR的base64</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.wav_byte_to_amr_byte">WAV字节转AMR字节</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.wav_byte_to_silk_base64">WAV字节转silk的base64</a>
+                                    </li>
+
+                                    <li class="toctree-l2">
+                                        <a class="reference internal"
+                                           href="index.html#WechatAPI.Client.tool.ToolMixin.wav_byte_to_silk_byte">WAV字节转silk字节</a>
+                                    </li>
+
+                                </ul>
+                            </li>
+
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </aside>
+    <div class="main">
+        <div class="content">
+            <div class="article-container">
+                <a class="back-to-top muted-link" href="#">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+                    </svg>
+                    <span>Back to top</span>
+                </a>
+                <div class="content-icon-container">
+                    <div class="theme-toggle-container theme-toggle-content">
+                        <button class="theme-toggle">
+                            <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+                            <svg class="theme-icon-when-auto-light">
+                                <use href="#svg-sun-with-moon"></use>
+                            </svg>
+                            <svg class="theme-icon-when-auto-dark">
+                                <use href="#svg-moon-with-sun"></use>
+                            </svg>
+                            <svg class="theme-icon-when-dark">
+                                <use href="#svg-moon"></use>
+                            </svg>
+                            <svg class="theme-icon-when-light">
+                                <use href="#svg-sun"></use>
+                            </svg>
+                        </button>
+                    </div>
+                    <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+                        <div class="visually-hidden">Toggle table of contents sidebar</div>
+                        <i class="icon">
+                            <svg>
+                                <use href="#svg-toc"></use>
+                            </svg>
+                        </i>
+                    </label>
+                </div>
+                <article id="furo-main-content" role="main">
+                    <h1>WechatAPI.Client.login 源代码</h1>
+                    <div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">string</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">random</span><span class="w"> </span><span
+                            class="kn">import</span> <span class="n">choice</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span
+                            class="kn">import</span> <span class="n">Union</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">aiohttp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">qrcode</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.base</span><span class="w"> </span><span
+                            class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.protect</span><span class="w"> </span><span
+                            class="kn">import</span> <span class="n">protector</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..errors</span><span class="w"> </span><span
+                            class="kn">import</span> <span class="o">*</span>
+
+
+<div class="viewcode-block" id="LoginMixin">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin">[文档]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LoginMixin</span><span class="p">(</span><span
+        class="n">WechatAPIClientBase</span><span class="p">):</span>
+<div class="viewcode-block" id="LoginMixin.is_running">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.is_running">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">is_running</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span
+        class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;检查WechatAPI是否在运行。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: 如果WechatAPI正在运行返回True，否则返回False。</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+                <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/IsRunning&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">text</span><span class="p">()</span> <span class="o">==</span> <span
+        class="s1">&#39;OK&#39;</span>
+        <span class="k">except</span> <span class="n">aiohttp</span><span class="o">.</span><span class="n">client_exceptions</span><span
+        class="o">.</span><span class="n">ClientConnectorError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.get_qr_code">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.get_qr_code">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">get_qr_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span
+        class="n">device_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span
+        class="n">device_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span
+        class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">proxy</span><span
+        class="p">:</span> <span class="n">Proxy</span> <span class="o">=</span> <span class="kc">None</span><span
+        class="p">,</span> <span class="n">print_qr</span><span class="p">:</span> <span class="nb">bool</span> <span
+        class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span
+        class="p">(</span>
+            <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;获取登录二维码。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            device_name (str): 设备名称</span>
+<span class="sd">            device_id (str, optional): 设备ID. Defaults to &quot;&quot;.</span>
+<span class="sd">            proxy (Proxy, optional): 代理信息. Defaults to None.</span>
+<span class="sd">            print_qr (bool, optional): 是否在控制台打印二维码. Defaults to False.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple[str, str]: 返回登录二维码的UUID和URL</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;DeviceName&#39;</span><span
+        class="p">:</span> <span class="n">device_name</span><span class="p">,</span> <span class="s1">&#39;DeviceID&#39;</span><span
+        class="p">:</span> <span class="n">device_id</span><span class="p">}</span>
+            <span class="k">if</span> <span class="n">proxy</span><span class="p">:</span>
+                <span class="n">json_param</span><span class="p">[</span><span
+        class="s1">&#39;ProxyInfo&#39;</span><span class="p">]</span> <span class="o">=</span> <span
+        class="p">{</span><span class="s1">&#39;ProxyIp&#39;</span><span class="p">:</span> <span
+        class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">proxy</span><span
+        class="o">.</span><span class="n">ip</span><span class="si">}</span><span class="s1">:</span><span
+        class="si">{</span><span class="n">proxy</span><span class="o">.</span><span class="n">port</span><span
+        class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                                           <span class="s1">&#39;ProxyPassword&#39;</span><span class="p">:</span> <span
+        class="n">proxy</span><span class="o">.</span><span class="n">password</span><span class="p">,</span>
+                                           <span class="s1">&#39;ProxyUser&#39;</span><span class="p">:</span> <span
+        class="n">proxy</span><span class="o">.</span><span class="n">username</span><span class="p">}</span>
+
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/GetQRCode&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+
+                <span class="k">if</span> <span class="n">print_qr</span><span class="p">:</span>
+                    <span class="n">qr</span> <span class="o">=</span> <span class="n">qrcode</span><span
+        class="o">.</span><span class="n">QRCode</span><span class="p">(</span>
+                        <span class="n">version</span><span class="o">=</span><span class="mi">1</span><span
+        class="p">,</span>
+                        <span class="n">error_correction</span><span class="o">=</span><span
+        class="n">qrcode</span><span class="o">.</span><span class="n">constants</span><span class="o">.</span><span
+        class="n">ERROR_CORRECT_L</span><span class="p">,</span>
+                        <span class="n">box_size</span><span class="o">=</span><span class="mi">10</span><span
+        class="p">,</span>
+                        <span class="n">border</span><span class="o">=</span><span class="mi">4</span><span
+        class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">qr</span><span class="o">.</span><span class="n">add_data</span><span
+        class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://weixin.qq.com/x/</span><span class="si">{</span><span
+        class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span
+        class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;Uuid&quot;</span><span
+        class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="n">qr</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span
+        class="n">fit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">qr</span><span class="o">.</span><span class="n">print_ascii</span><span class="p">()</span>
+
+                <span class="k">return</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;Uuid&quot;</span><span
+        class="p">),</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;QRCodeURL&quot;</span><span
+        class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span
+        class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.check_login_uuid">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.check_login_uuid">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">check_login_uuid</span><span class="p">(</span><span class="bp">self</span><span
+        class="p">,</span> <span class="n">uuid</span><span class="p">:</span> <span class="nb">str</span><span
+        class="p">,</span> <span class="n">device_id</span><span class="p">:</span> <span class="nb">str</span> <span
+        class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span
+        class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span
+        class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span
+        class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;检查登录的UUID状态。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            uuid (str): 登录的UUID</span>
+<span class="sd">            device_id (str, optional): 设备ID. Defaults to &quot;&quot;.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple[bool, Union[dict, int]]: 如果登录成功返回(True, 用户信息)，否则返回(False, 过期时间)</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Uuid&quot;</span><span
+        class="p">:</span> <span class="n">uuid</span><span class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/CheckUuid&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;Data&quot;</span><span
+        class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;acctSectResp&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">wxid</span> <span
+        class="o">=</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;acctSectResp&quot;</span><span
+        class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;userName&quot;</span><span
+        class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">nickname</span> <span class="o">=</span> <span
+        class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span
+        class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;acctSectResp&quot;</span><span
+        class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nickName&quot;</span><span
+        class="p">)</span>
+                    <span class="n">protector</span><span class="o">.</span><span
+        class="n">update_login_status</span><span class="p">(</span><span class="n">device_id</span><span
+        class="o">=</span><span class="n">device_id</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="n">json_resp</span><span
+        class="o">.</span><span class="n">get</span><span class="p">(</span><span
+        class="s2">&quot;Data&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="n">json_resp</span><span
+        class="o">.</span><span class="n">get</span><span class="p">(</span><span
+        class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;expiredTime&quot;</span><span
+        class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span
+        class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.log_out">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.log_out">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">log_out</span><span
+        class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span
+        class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;登出当前账号。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: 登出成功返回True，否则返回False</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            UserLoggedOut: 如果未登录时调用</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span
+        class="n">wxid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">UserLoggedOut</span><span class="p">(</span><span class="s2">&quot;请先登录&quot;</span><span
+        class="p">)</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Wxid&quot;</span><span
+        class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">wxid</span><span
+        class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span class="s1">/Logout&#39;</span><span
+        class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">json_param</span><span
+        class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">elif</span> <span class="n">json_resp</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span
+        class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.awaken_login">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.awaken_login">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">awaken_login</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span
+        class="n">wxid</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span
+        class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span
+        class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;唤醒登录。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            wxid (str, optional): 要唤醒的微信ID. Defaults to &quot;&quot;.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: 返回新的登录UUID</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Exception: 如果未提供wxid且未登录</span>
+<span class="sd">            LoginError: 如果无法获取UUID</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">wxid</span> <span
+        class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span
+        class="n">wxid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Please login using QRCode first&quot;</span><span
+        class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">wxid</span> <span
+        class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">wxid</span><span
+        class="p">:</span>
+            <span class="n">wxid</span> <span class="o">=</span> <span class="bp">self</span><span
+        class="o">.</span><span class="n">wxid</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Wxid&quot;</span><span
+        class="p">:</span> <span class="n">wxid</span><span class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/AwakenLogin&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">)</span> <span
+        class="ow">and</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;QrCodeResponse&quot;</span><span
+        class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Uuid&quot;</span><span
+        class="p">):</span>
+                <span class="k">return</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;QrCodeResponse&quot;</span><span
+        class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Uuid&quot;</span><span
+        class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">json_resp</span><span
+        class="o">.</span><span class="n">get</span><span class="p">(</span><span
+        class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;QrCodeResponse&quot;</span><span
+        class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Uuid&quot;</span><span
+        class="p">):</span>
+                <span class="k">raise</span> <span class="n">LoginError</span><span class="p">(</span><span class="s2">&quot;Please login using QRCode first&quot;</span><span
+        class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span
+        class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.get_cached_info">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.get_cached_info">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">get_cached_info</span><span class="p">(</span><span class="bp">self</span><span
+        class="p">,</span> <span class="n">wxid</span><span class="p">:</span> <span class="nb">str</span> <span
+        class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span
+        class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;获取登录缓存信息。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            wxid (str, optional): 要查询的微信ID. Defaults to None.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: 返回缓存信息，如果未提供wxid且未登录返回空字典</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">wxid</span><span class="p">:</span>
+            <span class="n">wxid</span> <span class="o">=</span> <span class="bp">self</span><span
+        class="o">.</span><span class="n">wxid</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">wxid</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{}</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Wxid&quot;</span><span
+        class="p">:</span> <span class="n">wxid</span><span class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/GetCachedInfo&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Data&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">{}</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.heartbeat">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.heartbeat">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">heartbeat</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span
+        class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;发送心跳包。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: 成功返回True，否则返回False</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            UserLoggedOut: 如果未登录时调用</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span
+        class="n">wxid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">UserLoggedOut</span><span class="p">(</span><span class="s2">&quot;请先登录&quot;</span><span
+        class="p">)</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Wxid&quot;</span><span
+        class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">wxid</span><span
+        class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/Heartbeat&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span
+        class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.start_auto_heartbeat">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.start_auto_heartbeat">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">start_auto_heartbeat</span><span class="p">(</span><span class="bp">self</span><span
+        class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;开始自动心跳。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: 成功返回True，否则返回False</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            UserLoggedOut: 如果未登录时调用</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span
+        class="n">wxid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">UserLoggedOut</span><span class="p">(</span><span class="s2">&quot;请先登录&quot;</span><span
+        class="p">)</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Wxid&quot;</span><span
+        class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">wxid</span><span
+        class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/AutoHeartbeatStart&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span
+        class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.stop_auto_heartbeat">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.stop_auto_heartbeat">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span
+        class="nf">stop_auto_heartbeat</span><span class="p">(</span><span class="bp">self</span><span
+        class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;停止自动心跳。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: 成功返回True，否则返回False</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            UserLoggedOut: 如果未登录时调用</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span
+        class="n">wxid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">UserLoggedOut</span><span class="p">(</span><span class="s2">&quot;请先登录&quot;</span><span
+        class="p">)</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Wxid&quot;</span><span
+        class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">wxid</span><span
+        class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/AutoHeartbeatStop&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span class="p">(</span><span
+        class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.get_auto_heartbeat_status">
+<a class="viewcode-back"
+   href="../../../index.html#WechatAPI.Client.login.LoginMixin.get_auto_heartbeat_status">[文档]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_auto_heartbeat_status</span><span
+        class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span
+        class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;获取自动心跳状态。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: 如果正在运行返回True，否则返回False</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            UserLoggedOut: 如果未登录时调用</span>
+<span class="sd">            根据error_handler处理错误</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span
+        class="n">wxid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">UserLoggedOut</span><span class="p">(</span><span class="s2">&quot;请先登录&quot;</span><span
+        class="p">)</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span
+        class="o">.</span><span class="n">ClientSession</span><span class="p">()</span> <span class="k">as</span> <span
+        class="n">session</span><span class="p">:</span>
+            <span class="n">json_param</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Wxid&quot;</span><span
+        class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">wxid</span><span
+        class="p">}</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">session</span><span
+        class="o">.</span><span class="n">post</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;http://</span><span
+        class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span
+        class="si">}</span><span class="s1">:</span><span class="si">{</span><span class="bp">self</span><span
+        class="o">.</span><span class="n">port</span><span class="si">}</span><span
+        class="s1">/AutoHeartbeatStatus&#39;</span><span class="p">,</span> <span class="n">json</span><span
+        class="o">=</span><span class="n">json_param</span><span class="p">)</span>
+            <span class="n">json_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">response</span><span
+        class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Success&quot;</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">json_resp</span><span class="o">.</span><span class="n">get</span><span
+        class="p">(</span><span class="s2">&quot;Data&quot;</span><span class="p">)</span><span class="o">.</span><span
+        class="n">get</span><span class="p">(</span><span class="s2">&quot;Running&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">error_handler</span><span
+        class="p">(</span><span class="n">json_resp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.create_device_name">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.create_device_name">[文档]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_device_name</span><span
+        class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;生成一个随机的设备名。</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: 返回生成的设备名</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">first_names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;Oliver&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Emma&quot;</span><span class="p">,</span> <span class="s2">&quot;Liam&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Ava&quot;</span><span class="p">,</span> <span class="s2">&quot;Noah&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Sophia&quot;</span><span class="p">,</span> <span class="s2">&quot;Elijah&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Isabella&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;James&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Mia&quot;</span><span class="p">,</span> <span class="s2">&quot;William&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Amelia&quot;</span><span class="p">,</span> <span class="s2">&quot;Benjamin&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Harper&quot;</span><span class="p">,</span> <span class="s2">&quot;Lucas&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Evelyn&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Henry&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Abigail&quot;</span><span class="p">,</span> <span class="s2">&quot;Alexander&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Ella&quot;</span><span class="p">,</span> <span class="s2">&quot;Jackson&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Scarlett&quot;</span><span class="p">,</span> <span class="s2">&quot;Sebastian&quot;</span><span
+        class="p">,</span>
+            <span class="s2">&quot;Grace&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Aiden&quot;</span><span class="p">,</span> <span class="s2">&quot;Chloe&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Matthew&quot;</span><span class="p">,</span> <span class="s2">&quot;Zoey&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Samuel&quot;</span><span class="p">,</span> <span class="s2">&quot;Lily&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;David&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Aria&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Joseph&quot;</span><span class="p">,</span> <span class="s2">&quot;Riley&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Carter&quot;</span><span class="p">,</span> <span class="s2">&quot;Nora&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Owen&quot;</span><span class="p">,</span> <span class="s2">&quot;Luna&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Daniel&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Sofia&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Gabriel&quot;</span><span class="p">,</span> <span class="s2">&quot;Ellie&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Matthew&quot;</span><span class="p">,</span> <span class="s2">&quot;Avery&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Isaac&quot;</span><span class="p">,</span> <span class="s2">&quot;Mila&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Leo&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Julian&quot;</span><span class="p">,</span> <span class="s2">&quot;Layla&quot;</span>
+        <span class="p">]</span>
+
+        <span class="n">last_names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;Smith&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Johnson&quot;</span><span class="p">,</span> <span class="s2">&quot;Williams&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Brown&quot;</span><span class="p">,</span> <span class="s2">&quot;Jones&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Garcia&quot;</span><span class="p">,</span> <span class="s2">&quot;Miller&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Davis&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Rodriguez&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Martinez&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Hernandez&quot;</span><span class="p">,</span> <span class="s2">&quot;Lopez&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Gonzalez&quot;</span><span class="p">,</span> <span class="s2">&quot;Wilson&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Anderson&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Thomas&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Taylor&quot;</span><span class="p">,</span> <span class="s2">&quot;Moore&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Jackson&quot;</span><span class="p">,</span> <span class="s2">&quot;Martin&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Lee&quot;</span><span class="p">,</span> <span class="s2">&quot;Perez&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Thompson&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;White&quot;</span><span class="p">,</span> <span class="s2">&quot;Harris&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Sanchez&quot;</span><span class="p">,</span> <span class="s2">&quot;Clark&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Ramirez&quot;</span><span class="p">,</span> <span class="s2">&quot;Lewis&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Robinson&quot;</span><span class="p">,</span> <span class="s2">&quot;Walker&quot;</span><span
+        class="p">,</span>
+            <span class="s2">&quot;Young&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Allen&quot;</span><span class="p">,</span> <span class="s2">&quot;King&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Wright&quot;</span><span class="p">,</span> <span class="s2">&quot;Scott&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Torres&quot;</span><span class="p">,</span> <span class="s2">&quot;Nguyen&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Hill&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Flores&quot;</span><span class="p">,</span> <span class="s2">&quot;Green&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Adams&quot;</span><span class="p">,</span> <span class="s2">&quot;Nelson&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Baker&quot;</span><span class="p">,</span> <span class="s2">&quot;Hall&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Rivera&quot;</span><span class="p">,</span> <span class="s2">&quot;Campbell&quot;</span><span
+        class="p">,</span>
+            <span class="s2">&quot;Mitchell&quot;</span><span class="p">,</span> <span
+        class="s2">&quot;Carter&quot;</span><span class="p">,</span> <span class="s2">&quot;Roberts&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Gomez&quot;</span><span class="p">,</span> <span class="s2">&quot;Phillips&quot;</span><span
+        class="p">,</span> <span class="s2">&quot;Evans&quot;</span>
+        <span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">choice</span><span class="p">(</span><span
+        class="n">first_names</span><span class="p">)</span> <span class="o">+</span> <span
+        class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">choice</span><span
+        class="p">(</span><span class="n">last_names</span><span class="p">)</span> <span class="o">+</span> <span
+        class="s2">&quot;&#39;s Pad&quot;</span></div>
+
+
+<div class="viewcode-block" id="LoginMixin.create_device_id">
+<a class="viewcode-back" href="../../../index.html#WechatAPI.Client.login.LoginMixin.create_device_id">[文档]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_device_id</span><span
+        class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span> <span
+        class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span
+        class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;生成设备ID。</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            s (str, optional): 用于生成ID的字符串. Defaults to &quot;&quot;.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: 返回生成的设备ID</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span
+        class="s2">&quot;&quot;</span> <span class="ow">or</span> <span class="n">s</span> <span
+        class="o">==</span> <span class="s2">&quot;string&quot;</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span
+        class="n">join</span><span class="p">(</span><span class="n">choice</span><span class="p">(</span><span
+        class="n">string</span><span class="o">.</span><span class="n">ascii_letters</span><span
+        class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span
+        class="nb">range</span><span class="p">(</span><span class="mi">15</span><span class="p">))</span>
+        <span class="n">md5_hash</span> <span class="o">=</span> <span class="n">hashlib</span><span
+        class="o">.</span><span class="n">md5</span><span class="p">(</span><span class="n">s</span><span
+        class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span
+        class="n">hexdigest</span><span class="p">()</span>
+        <span class="k">return</span> <span class="s2">&quot;49&quot;</span> <span class="o">+</span> <span class="n">md5_hash</span><span
+        class="p">[</span><span class="mi">2</span><span class="p">:]</span></div>
+</div>
+
+</pre>
+                    </div>
+                </article>
+            </div>
+            <footer>
+
+                <div class="related-pages">
+
+
+                </div>
+                <div class="bottom-of-page">
+                    <div class="left-details">
+                        <div class="copyright">
+                            Copyright &#169; 2025, HenryXiaoYang
+                        </div>
+                        Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link"
+                                                                                          href="https://pradyunsg.me">@pradyunsg</a>'s
+
+                        <a href="https://github.com/pradyunsg/furo">Furo</a>
+
+                    </div>
+                    <div class="right-details">
+
+                    </div>
+                </div>
+
+            </footer>
+        </div>
+        <aside class="toc-drawer no-toc">
+
+
+        </aside>
+    </div>
+</div>
+<script src="../../../_static/documentation_options.js?v=91bfbbb6"></script>
+<script src="../../../_static/doctools.js?v=9bcbadda"></script>
+<script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+<script src="../../../_static/scripts/furo.js?v=5fa4622c"></script>
+<script src="../../../_static/translations.js?v=beaddf03"></script>
+</body>
+</html>

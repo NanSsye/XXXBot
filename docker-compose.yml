@@ -1,0 +1,20 @@
+services:
+  xxxbot:
+    image: nansy/xxxbot:latest
+    container_name: XXXBot
+    restart: on-failure:3
+    ports:
+      - "9090:9090" # 管理后台端口
+    volumes:
+      - xxxbot:/app
+      - redis_data:/var/lib/redis
+    environment:
+      - ADMIN_USERNAME=your_username
+      - ADMIN_PASSWORD=your_secure_password
+    build: .
+
+volumes:
+  redis_data:
+    name: redis_data
+  xxxbot:
+    name: XXXBot

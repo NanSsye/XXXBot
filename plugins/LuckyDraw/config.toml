@@ -1,0 +1,48 @@
+[LuckyDraw]
+enable = true
+command = ["抽奖", "幸运抽奖", "抽奖活动", "抽奖指令", "幸运大抽奖", "大抽奖", "积分抽奖"]
+command-format = """
+-----XXXBot-----
+🎉抽奖指令：
+抽奖 奖池名 次数
+次数可选
+
+🎁奖池列表：
+小抽奖指令：抽奖 小
+中抽奖指令：抽奖 中
+大抽奖指令：抽奖 大
+"""
+max-draw = 100
+draw-per-guarantee = 10
+guaranteed-max-probability = 0.5
+
+[LuckyDraw.probabilities.small]
+name = "小"
+cost = 20
+[LuckyDraw.probabilities.small.probability]
+"0.05" = { name = "金", points = 40, symbol = "🟨" }
+"0.10" = { name = "紫", points = 35, symbol = "🟪" }
+"0.20" = { name = "蓝", points = 21, symbol = "🟦" }
+"0.30" = { name = "绿", points = 15, symbol = "🟩" }
+"0.35" = { name = "白", points = 10, symbol = "⬜️" }
+
+[LuckyDraw.probabilities.medium]
+name = "中"
+cost = 40
+[LuckyDraw.probabilities.medium.probability]
+"0.05" = { name = "金", points = 70, symbol = "🟨" }
+"0.10" = { name = "紫", points = 55, symbol = "🟪" }
+"0.20" = { name = "蓝", points = 41, symbol = "🟦" }
+"0.30" = { name = "绿", points = 35, symbol = "🟩" }
+"0.35" = { name = "白", points = 25, symbol = "⬜️" }
+
+[LuckyDraw.probabilities.large]
+name = "大"
+cost = 80
+[LuckyDraw.probabilities.large.probability]
+"0.01" = { name = "红", points = 170, symbol = "🟥" }
+"0.05" = { name = "金", points = 120, symbol = "🟨" }
+"0.10" = { name = "紫", points = 90, symbol = "🟪" }
+"0.20" = { name = "蓝", points = 81, symbol = "🟦" }
+"0.30" = { name = "绿", points = 75, symbol = "🟩" }
+"0.34" = { name = "白", points = 65, symbol = "⬜️" }

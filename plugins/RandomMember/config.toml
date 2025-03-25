@@ -1,0 +1,4 @@
+[RandomMember]
+enable = true
+command = ["随机成员", "随机群员", "随机群成员", "随机群用户"]
+count = 3

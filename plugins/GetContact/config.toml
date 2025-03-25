@@ -1,0 +1,3 @@
+[GetContact]
+enable = true
+command = ["获取联系人", "联系人", "通讯录", "获取通讯录"]

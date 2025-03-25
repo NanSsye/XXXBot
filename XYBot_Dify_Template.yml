@@ -1,0 +1,607 @@
+app:
+  description: XYBot微信机器人Dify插件模版
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  mode: advanced-chat
+  name: XYBot
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.5
+workflow:
+  conversation_variables: [ ]
+  environment_variables: [ ]
+  features:
+    file_upload:
+      allowed_file_extensions: [ ]
+      allowed_file_types:
+        - image
+      allowed_file_upload_methods:
+        - remote_url
+        - local_file
+      enabled: true
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        image_file_size_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+          - local_file
+          - remote_url
+      number_limits: 1
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: true
+    suggested_questions: [ ]
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: true
+      language: zh-Hans
+      voice: ''
+  graph:
+    edges:
+      - data:
+          isInIteration: false
+          sourceType: llm
+          targetType: answer
+        id: 1738917745853-source-1738918123165-target
+        source: '1738917745853'
+        sourceHandle: source
+        target: '1738918123165'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: start
+          targetType: if-else
+        id: 1738915019767-source-1739252680159-target
+        source: '1738915019767'
+        sourceHandle: source
+        target: '1739252680159'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: if-else
+          targetType: llm
+        id: 1739252680159-3a9541e0-b608-4bb5-a027-def256809e7a-1739252840296-target
+        source: '1739252680159'
+        sourceHandle: 3a9541e0-b608-4bb5-a027-def256809e7a
+        target: '1739252840296'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: llm
+          targetType: answer
+        id: 1739252840296-source-1739252888579-target
+        source: '1739252840296'
+        sourceHandle: source
+        target: '1739252888579'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: list-operator
+          targetType: tool
+        id: 1739254087701-source-1739252789163-target
+        source: '1739254087701'
+        sourceHandle: source
+        target: '1739252789163'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: if-else
+          targetType: list-operator
+        id: 1739252680159-458858e2-e643-442d-9bfd-2ef164189378-1739254087701-target
+        source: '1739252680159'
+        sourceHandle: 458858e2-e643-442d-9bfd-2ef164189378
+        target: '1739254087701'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: if-else
+          targetType: llm
+        id: 1739252680159-true-1738917745853-target
+        source: '1739252680159'
+        sourceHandle: 'true'
+        target: '1738917745853'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: tool
+          targetType: llm
+        id: 1739252789163-source-1739255059499-target
+        source: '1739252789163'
+        sourceHandle: source
+        target: '1739255059499'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: llm
+          targetType: tool
+        id: 1739255059499-source-1739257224364-target
+        source: '1739255059499'
+        sourceHandle: source
+        target: '1739257224364'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: tool
+          targetType: answer
+        id: 1739257224364-source-1739288133732-target
+        source: '1739257224364'
+        sourceHandle: source
+        target: '1739288133732'
+        targetHandle: target
+        type: custom
+        zIndex: 0
+    nodes:
+      - data:
+          desc: ''
+          selected: false
+          title: 开始
+          type: start
+          variables: [ ]
+        height: 54
+        id: '1738915019767'
+        position:
+          x: -262.276922445997
+          y: 406.16303131970574
+        positionAbsolute:
+          x: -262.276922445997
+          y: 406.16303131970574
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          context:
+            enabled: false
+            variable_selector: [ ]
+          desc: ''
+          memory:
+            query_prompt_template: '{{#sys.query#}}
+
+            '
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: false
+              size: 50
+          model:
+            completion_params:
+              max_tokens: 4096
+              temperature: 0.7
+            mode: chat
+            name: gpt-4o-mini
+            provider: openai
+          prompt_template:
+            - edition_type: basic
+              id: 6de35274-53f5-4e34-89c5-a9c30ffb5f64
+              role: system
+              text: '你是一个友好有用的助理，你的名字叫XYBot。你会用简洁、专业的方式回答问题。
+
+            - 用户用什么语言问，就用什么语言回答
+
+            - 对于代码相关问题，请提供清晰的示例和解释'
+          selected: false
+          title: LLM1
+          type: llm
+          variables: [ ]
+          vision:
+            configs:
+              detail: low
+              variable_selector:
+                - sys
+                - files
+            enabled: false
+        height: 98
+        id: '1738917745853'
+        position:
+          x: 500.2723150319407
+          y: 356.991212440781
+        positionAbsolute:
+          x: 500.2723150319407
+          y: 356.991212440781
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          answer: '{{#1738917745853.text#}}'
+          desc: ''
+          selected: false
+          title: 直接回复
+          type: answer
+          variables: [ ]
+        height: 103
+        id: '1738918123165'
+        position:
+          x: 829.4029907903282
+          y: 356.991212440781
+        positionAbsolute:
+          x: 829.4029907903282
+          y: 356.991212440781
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          cases:
+            - case_id: 'true'
+              conditions:
+                - comparison_operator: empty
+                  id: a6c51713-13ff-4c59-92ad-df1af61aa759
+                  value: ''
+                  varType: array[file]
+                  variable_selector:
+                    - sys
+                    - files
+              id: 'true'
+              logical_operator: or
+            - case_id: 3a9541e0-b608-4bb5-a027-def256809e7a
+              conditions:
+                - comparison_operator: contains
+                  id: dda26e42-905b-4503-9e7e-aefe52b20e7e
+                  sub_variable_condition:
+                    case_id: a3472907-6671-4ff6-a40f-420943e154f3
+                    conditions:
+                      - comparison_operator: in
+                        id: f2c55058-eabf-4fde-a2da-e6c07e64246c
+                        key: type
+                        value:
+                          - image
+                        varType: string
+                    logical_operator: and
+                  value: ''
+                  varType: array[file]
+                  variable_selector:
+                    - sys
+                    - files
+              id: 3a9541e0-b608-4bb5-a027-def256809e7a
+              logical_operator: and
+            - case_id: 458858e2-e643-442d-9bfd-2ef164189378
+              conditions:
+                - comparison_operator: contains
+                  id: d5b09e7e-a8ea-4018-8650-947d6d9b0ca1
+                  sub_variable_condition:
+                    case_id: 1e38440a-5660-41d5-9be3-7cfafa0a8b6a
+                    conditions:
+                      - comparison_operator: in
+                        id: 864efcf6-b80a-4c3b-8842-b3c7c66074cb
+                        key: type
+                        value:
+                          - audio
+                        varType: string
+                    logical_operator: and
+                  value: ''
+                  varType: array[file]
+                  variable_selector:
+                    - sys
+                    - files
+              id: 458858e2-e643-442d-9bfd-2ef164189378
+              logical_operator: and
+            - case_id: c47afde9-f052-4d4d-9efe-f498b3f94a80
+              conditions:
+                - comparison_operator: contains
+                  id: 1a5eab00-9ed2-488c-8eb3-99d902c33ac3
+                  sub_variable_condition:
+                    case_id: b4eb1a99-7840-4d62-bffe-e40a073db948
+                    conditions:
+                      - comparison_operator: in
+                        id: 280c0d9a-7e77-4c69-902c-36e9ccc466be
+                        key: type
+                        value:
+                          - document
+                        varType: string
+                    logical_operator: and
+                  value: ''
+                  varType: array[file]
+                  variable_selector:
+                    - sys
+                    - files
+              logical_operator: and
+            - case_id: 5e77a038-54bc-45a9-b99f-1606c8d13d6a
+              conditions:
+                - comparison_operator: contains
+                  id: 33cb4ff7-f570-46b8-a358-2dc44e735754
+                  sub_variable_condition:
+                    case_id: 84bf66f6-5445-46ce-b036-90207abb4a98
+                    conditions:
+                      - comparison_operator: in
+                        id: dc9f8cb7-668b-4545-b924-f58e6bbd4436
+                        key: type
+                        value:
+                          - video
+                        varType: string
+                    logical_operator: and
+                  value: ''
+                  varType: array[file]
+                  variable_selector:
+                    - sys
+                    - files
+              logical_operator: and
+          desc: ''
+          selected: false
+          title: 条件分支
+          type: if-else
+        height: 414
+        id: '1739252680159'
+        position:
+          x: 92.72226561832565
+          y: 406.16303131970574
+        positionAbsolute:
+          x: 92.72226561832565
+          y: 406.16303131970574
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          desc: ''
+          provider_id: audio
+          provider_name: audio
+          provider_type: builtin
+          selected: false
+          title: Speech To Text
+          tool_configurations:
+            model: openai_api_compatible#step-asr
+          tool_label: Speech To Text
+          tool_name: asr
+          tool_parameters:
+            audio_file:
+              type: variable
+              value:
+                - '1739254087701'
+                - first_record
+          type: tool
+        height: 90
+        id: '1739252789163'
+        position:
+          x: 818.0854081792563
+          y: 637.9065614866665
+        positionAbsolute:
+          x: 818.0854081792563
+          y: 637.9065614866665
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          context:
+            enabled: false
+            variable_selector: [ ]
+          desc: ''
+          memory:
+            query_prompt_template: '{{#sys.query#}}'
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: false
+              size: 50
+          model:
+            completion_params:
+              temperature: 0.7
+            mode: chat
+            name: gpt-4o-mini
+            provider: openai
+          prompt_template:
+            - id: 230c6990-e5b0-41d7-9dc8-70782d28bd8d
+              role: system
+              text: 你是一个乐于助人的助手。请将图片里的内容完整无缺的复述出来。
+          selected: true
+          title: 支持图片输入的LLM
+          type: llm
+          variables: [ ]
+          vision:
+            configs:
+              detail: high
+              variable_selector:
+                - sys
+                - files
+            enabled: true
+        height: 98
+        id: '1739252840296'
+        position:
+          x: 507.5756009542859
+          y: 498.0040880918219
+        positionAbsolute:
+          x: 507.5756009542859
+          y: 498.0040880918219
+        selected: true
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          answer: '{{#1739252840296.text#}}'
+          desc: ''
+          selected: false
+          title: 直接回复 3
+          type: answer
+          variables: [ ]
+        height: 103
+        id: '1739252888579'
+        position:
+          x: 818.0854081792563
+          y: 498.0040880918219
+        positionAbsolute:
+          x: 818.0854081792563
+          y: 498.0040880918219
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          desc: ''
+          extract_by:
+            enabled: true
+            serial: '1'
+          filter_by:
+            conditions:
+              - comparison_operator: contains
+                key: name
+                value: ''
+            enabled: false
+          item_var_type: file
+          limit:
+            enabled: false
+            size: 1
+          order_by:
+            enabled: false
+            key: ''
+            value: asc
+          selected: false
+          title: 列表操作
+          type: list-operator
+          var_type: array[file]
+          variable:
+            - sys
+            - files
+        height: 92
+        id: '1739254087701'
+        position:
+          x: 507.5756009542859
+          y: 630.2109361546167
+        positionAbsolute:
+          x: 507.5756009542859
+          y: 630.2109361546167
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          context:
+            enabled: false
+            variable_selector: [ ]
+          desc: ''
+          memory:
+            query_prompt_template: '{{#sys.query#}}
+
+            {{#1739252789163.text#}}'
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: false
+              size: 50
+          model:
+            completion_params:
+              temperature: 0.7
+            mode: chat
+            name: gpt-4o-mini
+            provider: openai
+          prompt_template:
+            - id: 6291138d-3a76-46e1-a7e0-d2670d6352f5
+              role: system
+              text: 你是一个友好的助理，你的名字叫XYBot。你会用简洁方式回答问题。
+          selected: false
+          title: LLM
+          type: llm
+          variables: [ ]
+          vision:
+            enabled: false
+        height: 98
+        id: '1739255059499'
+        position:
+          x: 1115.57540385159
+          y: 637.9065614866665
+        positionAbsolute:
+          x: 1115.57540385159
+          y: 637.9065614866665
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          desc: ''
+          provider_id: audio
+          provider_name: audio
+          provider_type: builtin
+          selected: false
+          title: Text To Speech
+          tool_configurations:
+            model: openai_api_compatible#step-tts-mini
+            voice#openai#tts-1: null
+            voice#openai#tts-1-hd: null
+            voice#openai_api_compatible#step-tts-mini: qingniandaxuesheng
+            voice#siliconflow#fishaudio/fish-speech-1.4: null
+            voice#siliconflow#fishaudio/fish-speech-1.5: null
+          tool_label: Text To Speech
+          tool_name: tts
+          tool_parameters:
+            text:
+              type: mixed
+              value: '{{#1739255059499.text#}}'
+          type: tool
+        height: 220
+        id: '1739257224364'
+        position:
+          x: 1397.2265350019834
+          y: 637.9065614866665
+        positionAbsolute:
+          x: 1397.2265350019834
+          y: 637.9065614866665
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          answer: '{{#1739257224364.files#}}'
+          desc: ''
+          selected: false
+          title: 直接回复 3
+          type: answer
+          variables: [ ]
+        height: 103
+        id: '1739288133732'
+        position:
+          x: 1701.2265350019834
+          y: 637.9065614866665
+        positionAbsolute:
+          x: 1701.2265350019834
+          y: 637.9065614866665
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+    viewport:
+      x: 166.25140302119496
+      y: -208.44690452784948
+      zoom: 0.6997797002524726

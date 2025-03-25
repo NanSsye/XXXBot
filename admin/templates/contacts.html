@@ -1,0 +1,1400 @@
+{% extends "base.html" %}
+
+{% block title %}联系人管理 - XXXBot管理后台{% endblock %}
+
+{% block page_title %}联系人管理{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .status-dot.online {
+        background-color: var(--success-color);
+    }
+    
+    .status-dot.offline {
+        background-color: var(--danger-color);
+    }
+
+    .contact-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 24px;
+        object-fit: cover;
+    }
+    
+    .contact-avatar.large {
+        width: 120px;
+        height: 120px;
+        border-radius: 60px;
+        object-fit: cover;
+        border: 4px solid #f8f9fa;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .contact-avatar.large:hover {
+        transform: scale(1.05);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    
+    .contact-search {
+        position: relative;
+    }
+    
+    .contact-search .search-icon {
+        position: absolute;
+        left: 15px;
+        top: 10px;
+        color: var(--text-muted);
+    }
+    
+    .contact-search input {
+        padding-left: 40px;
+        background-color: var(--bs-light);
+        border: none;
+        border-radius: 50px;
+    }
+    
+    .contact-list {
+        overflow-y: auto;
+        max-height: 600px;
+    }
+    
+    .contact-item {
+        padding: 10px 15px;
+        border-radius: 8px;
+        margin-bottom: 5px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .contact-item:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+    }
+    
+    .contact-item.active {
+        background-color: rgba(var(--bs-primary-rgb), 0.1);
+    }
+    
+    .contact-detail-header {
+        padding: 20px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    
+    .contact-detail-header .avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 32px;
+        object-fit: cover;
+    }
+    
+    .contact-detail-content {
+        padding: 20px;
+    }
+    
+    .contact-info-item {
+        margin-bottom: 15px;
+    }
+    
+    .contact-info-item .label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+    
+    .contact-info-item .value {
+        font-weight: 500;
+    }
+    
+    .message-history {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 8px;
+        background-color: var(--bs-light);
+        padding: 10px;
+    }
+    
+    .message-bubble {
+        max-width: 80%;
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 18px;
+        position: relative;
+    }
+    
+    .message-bubble.incoming {
+        background-color: #f1f0f0;
+        border-bottom-left-radius: 5px;
+        align-self: flex-start;
+    }
+    
+    .message-bubble.outgoing {
+        background-color: var(--primary-color-light);
+        color: white;
+        border-bottom-right-radius: 5px;
+        align-self: flex-end;
+    }
+    
+    .message-time {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        margin-top: 5px;
+    }
+    
+    /* 修复模态框样式 */
+    .modal {
+        background: rgba(0, 0, 0, 0.5);
+    }
+    
+    .modal-backdrop {
+        display: none !important;
+    }
+    
+    .modal-dialog {
+        margin: 1.75rem auto;
+        max-width: 800px;
+    }
+    
+    .modal-content {
+        border-radius: 8px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    }
+    
+    /* 确保模态框内容可滚动 */
+    .modal-body {
+        max-height: calc(100vh - 210px);
+        overflow-y: auto;
+    }
+    
+    /* 移除所有自定义对话框和遮罩 */
+    .custom-dialog-overlay,
+    .custom-dialog,
+    .modal-backdrop {
+        display: none !important;
+    }
+    
+    /* 修复body样式 */
+    body.modal-open {
+        overflow: hidden;
+        padding-right: 0 !important;
+    }
+    
+    /* 联系人详情卡片样式 */
+    .contact-details-card {
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        background-color: #fff;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .contact-details-card:hover {
+        box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+    }
+    
+    /* 信息项样式 */
+    .info-item {
+        padding: 10px 15px;
+        border-bottom: 1px solid #f1f1f1;
+        display: flex;
+        align-items: center;
+    }
+    
+    .info-item:last-child {
+        border-bottom: none;
+    }
+    
+    .info-label {
+        font-weight: 500;
+        color: #6c757d;
+        width: 100px;
+    }
+    
+    .info-value {
+        flex: 1;
+        word-break: break-all;
+    }
+    
+    /* 群公告样式 */
+    .announcement-card {
+        background: linear-gradient(to right, #f8f9fa, #e9ecef);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    }
+    
+    /* 按钮样式 */
+    .action-button {
+        border-radius: 50px;
+        padding: 8px 20px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .action-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* 隐藏聊天记录部分 */
+    #message-history-section {
+        display: none !important;
+    }
+    
+    /* 移除顶部导航栏中的搜索框和通知按钮 */
+    .navbar-search,
+    .navbar-notifications {
+        display: none !important;
+    }
+</style>
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group">
+    <button class="btn btn-sm btn-primary refresh-contacts-btn">
+        <i class="bi bi-arrow-clockwise me-1"></i>刷新
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" id="btn-export-contacts">
+        <i class="bi bi-download me-1"></i>导出
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="row g-3">
+        <!-- 联系人分类 -->
+        <div class="col-12 col-md-3">
+            <div class="card dashboard-card mb-4" data-aos="fade-right">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people-fill me-2 text-primary"></i>联系人分类
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="#" class="list-group-item list-group-item-action active" data-filter="all">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-people me-2"></i>所有联系人
+                                </div>
+                                <span class="badge bg-primary rounded-pill" id="all-count">0</span>
+                            </div>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action" data-filter="friends">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-person-check me-2"></i>好友
+                                </div>
+                                <span class="badge bg-secondary rounded-pill" id="friends-count">0</span>
+                            </div>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action" data-filter="groups">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-people-fill me-2"></i>群聊
+                                </div>
+                                <span class="badge bg-secondary rounded-pill" id="groups-count">0</span>
+                            </div>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action" data-filter="official">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-shop me-2"></i>公众号
+                                </div>
+                                <span class="badge bg-secondary rounded-pill" id="official-count">0</span>
+                            </div>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action" data-filter="starred">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-star-fill me-2 text-warning"></i>星标联系人
+                                </div>
+                                <span class="badge bg-secondary rounded-pill" id="starred-count">0</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 联系人列表 -->
+        <div class="col-12 col-md-3">
+            <div class="card dashboard-card h-100" data-aos="fade-up">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <span id="contact-list-title">所有联系人</span>
+                        <span class="badge bg-primary ms-2" id="contact-list-count">0</span>
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary refresh-contacts-btn">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="contact-list" id="contact-list">
+                        <div class="text-center p-5 text-muted" id="contacts-loading">
+                            <i class="bi bi-arrow-clockwise fa-spin" style="font-size: 2rem;"></i>
+                            <p class="mt-3">加载联系人列表中...</p>
+                        </div>
+                        <div class="text-center p-2 text-muted" id="contacts-loading-details" style="display: none;">
+                            <div class="progress mb-2" style="height: 4px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                    </div>
+                            <small id="contacts-loading-details-progress">加载详情... 0%</small>
+                        </div>
+                        <div id="contacts-error" class="alert alert-danger m-3" style="display: none;"></div>
+                        <div id="contacts-last-updated" class="text-muted small p-2 text-center" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 联系人详情 -->
+        <div class="col-12 col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">联系人详情</h5>
+                    <div>
+                        <button id="send-message-btn" class="btn btn-primary action-button" disabled>
+                            <i class="bi bi-chat-left-text"></i> 发送消息
+                        </button>
+                        <button class="btn btn-light action-button" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-person-plus"></i> 添加好友</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-tag"></i> 添加标签</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-person-x"></i> 删除联系人</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="contact-details-placeholder" class="text-center py-5">
+                        <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center mb-3" style="width: 120px; height: 120px;">
+                            <i class="bi bi-person text-secondary" style="font-size: 3rem;"></i>
+                    </div>
+                        <p class="text-muted">选择一个联系人查看详情</p>
+                                    </div>
+                    
+                    <div id="contact-details-content" class="d-none">
+                        <div class="text-center mb-4">
+                            <img id="contact-avatar" src="/static/img/favicon.ico" alt="联系人头像" class="contact-avatar large mb-3">
+                            <h4 id="contact-name" class="mb-0">联系人姓名</h4>
+                                </div>
+                        
+                        <div class="contact-details-card">
+                            <div class="info-item">
+                                <span class="info-label">微信ID</span>
+                                <span id="contact-wxid" class="info-value">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">昵称</span>
+                                <span id="contact-nickname" class="info-value">-</span>
+                        </div>
+                            <div class="info-item">
+                                <span class="info-label">备注名</span>
+                                <span id="contact-remark" class="info-value">-</span>
+                                    </div>
+                            <div class="info-item">
+                                <span class="info-label">微信号</span>
+                                <span id="contact-alias" class="info-value">-</span>
+                                    </div>
+                            <div class="info-item">
+                                <span class="info-label">地区</span>
+                                <span id="contact-region" class="info-value">-</span>
+                                </div>
+                                    </div>
+                        
+                        <!-- 群公告 -->
+                        <div id="group-info-section" class="mb-4 d-none">
+                            <h6 class="mb-3">群公告</h6>
+                            <div class="announcement-card">
+                                <div id="group-announcement-content" class="text-muted">暂无群公告</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                    <!-- 消息历史 (已隐藏) -->
+                    <div id="message-history-section">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">聊天记录</h6>
+                            <span class="badge bg-secondary">已禁用</span>
+                                </div>
+                        <div id="messages-container" class="border rounded p-3 bg-light" style="height: 300px; overflow-y: auto;">
+                            <div class="text-center text-muted">
+                                <i class="bi bi-lock"></i> 聊天记录功能已被管理员禁用
+                                <p class="small mt-2">该功能不再提供聊天历史记录检索服务</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量发送消息模态框 -->
+<div class="modal fade" id="batch-send-modal" tabindex="-1" aria-labelledby="batch-send-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batch-send-modal-label">批量发送消息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="mb-3">
+                            <label class="form-label">选择接收人</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="batch-contact-search" placeholder="搜索联系人...">
+                                <button class="btn btn-outline-secondary" type="button" id="batch-contact-search-btn">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <div>
+                                    <button class="btn btn-sm btn-outline-primary" id="select-all-contacts">全选</button>
+                                    <button class="btn btn-sm btn-outline-secondary" id="deselect-all-contacts">取消全选</button>
+                                </div>
+                                <span class="text-muted small">已选择: <span id="selected-contacts-count">0</span></span>
+                            </div>
+                            <div class="border rounded p-2" style="height: 300px; overflow-y: auto;">
+                                <div id="batch-contacts-list">
+                                    <div class="text-center py-4 text-muted">
+                                        <i class="bi bi-arrow-clockwise fa-spin"></i>
+                                        <p class="mt-2">加载联系人列表中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="mb-3">
+                            <label for="batch-message-content" class="form-label">消息内容</label>
+                            <textarea class="form-control" id="batch-message-content" rows="11" placeholder="输入要发送的文本消息..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="send-delay-check">
+                                <label class="form-check-label" for="send-delay-check">
+                                    启用发送延迟（防止频率限制）
+                                </label>
+                            </div>
+                            <div id="delay-settings" class="mt-2" style="display: none;">
+                                <label for="delay-seconds" class="form-label">每条消息间隔 <span id="delay-value">1</span> 秒</label>
+                                <input type="range" class="form-range" min="1" max="10" value="1" id="delay-seconds">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="w-100">
+                    <div class="row">
+                        <div class="col text-start">
+                            <div id="batch-status" class="text-muted"></div>
+                            <div class="progress mt-2" style="display: none;" id="batch-progress-container">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" id="batch-progress-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" id="btn-batch-send">发送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 发送消息模态框 -->
+<div class="modal fade" id="send-message-modal" tabindex="-1" aria-labelledby="send-message-modal-label" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="send-message-modal-label">发送消息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="recipient-name" class="form-label">接收人</label>
+                    <input type="text" class="form-control" id="recipient-name" readonly>
+                    <input type="hidden" id="recipient-wxid">
+                </div>
+                <div class="mb-3">
+                    <label for="message-content" class="form-label">消息内容</label>
+                    <textarea class="form-control" id="message-content" rows="5" placeholder="输入要发送的文本消息..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="container-fluid p-0">
+                    <div class="row">
+                        <div class="col text-start">
+                            <span id="message-status" class="text-muted"></span>
+                        </div>
+                        <div class="col-auto">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" id="btn-send-message">发送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- 联系人详情模态框 -->
+<div class="modal" id="contact-detail-modal" tabindex="-1" aria-labelledby="contact-detail-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contact-detail-title">联系人详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body" id="contact-detail-content">
+                <!-- 内容将通过JavaScript动态加载 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 群成员列表模态框 -->
+<div class="modal" id="group-members-modal" tabindex="-1" aria-labelledby="group-members-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="group-members-title">群成员列表</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body" id="group-members-content">
+                <!-- 内容将通过JavaScript动态加载 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 其他模态框 -->
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    let contacts = [];
+    let filteredContacts = [];
+    let currentFilter = 'all';
+    let currentContactId = null;
+    let isLoadingContacts = false;
+    let isLoadingDetails = false;
+    let detailsRequestInProgress = false;
+    let lastRequestTime = 0;
+    let requestErrors = 0;
+    const MIN_REQUEST_INTERVAL = 2000; // 最小请求间隔(毫秒)
+    const MAX_ERRORS = 3; // 最大错误次数
+    
+    // 加载联系人列表
+    function loadContacts(refresh = false) {
+        if (isLoadingContacts) return;
+        
+        isLoadingContacts = true;
+        const refreshBtn = $('.refresh-contacts-btn');
+        const originalBtnHtml = refreshBtn.html();
+        
+        // 更新按钮状态
+        refreshBtn.html('<i class="bi bi-arrow-repeat spin"></i>');
+        refreshBtn.prop('disabled', true);
+        
+        // 显示加载状态
+        $('#contacts-loading').show();
+        $('#contact-list .contact-item').remove();
+        $('#contacts-error').hide();
+        $('#contacts-last-updated').hide();
+        
+        // 添加旋转效果
+        $('.bi-arrow-clockwise').addClass('fa-spin');
+        
+        // 输出调试信息
+        console.log('正在请求联系人API，refresh=' + refresh);
+        
+        // 构建请求URL
+        let apiUrl = '/api/contacts';
+        if (refresh) {
+            apiUrl += '?refresh=true';
+        }
+        
+        // 发送API请求
+        $.ajax({
+            url: apiUrl,
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                console.log('API返回数据:', response);
+                isLoadingContacts = false;
+                
+                // 停止旋转效果
+                $('.bi-arrow-clockwise').removeClass('fa-spin');
+                
+                if (response.success) {
+                    contacts = response.data;
+                    
+                    // 如果需要，分批次加载详细信息
+                    if (contacts.length > 0) {
+                        // 先显示基础联系人列表
+                        updateContactsUI();
+                        
+                        // 然后分批加载详细信息
+                        loadContactDetails(contacts);
+            } else {
+                        updateContactsUI();
+                    }
+                    
+                    // 如果响应中包含时间戳，显示最后更新时间
+                    if (response.timestamp) {
+                        const updateTime = new Date(response.timestamp * 1000);
+                        const formattedTime = updateTime.toLocaleString();
+                        $('#contacts-last-updated').text('最后更新: ' + formattedTime);
+                        $('#contacts-last-updated').show();
+                    }
+                    
+                    // 隐藏加载状态
+                    $('#contacts-loading').hide();
+                } else {
+                    // 显示错误消息
+                    console.error('获取联系人失败:', response.error);
+                    alert('获取联系人失败: ' + (response.error || '未知错误'));
+                    $('#contacts-error').text(response.error || '获取联系人失败').show();
+                    $('#contacts-loading').hide();
+                }
+                
+                // 恢复按钮状态
+                refreshBtn.html(originalBtnHtml);
+                refreshBtn.prop('disabled', false);
+            },
+            error: function(xhr, status, error) {
+                console.error('请求联系人API失败:', error);
+                isLoadingContacts = false;
+                
+                // 停止旋转效果
+                $('.bi-arrow-clockwise').removeClass('fa-spin');
+                
+                // 显示错误消息
+                alert('网络错误，请稍后重试: ' + error);
+                $('#contacts-error').text('网络错误，请稍后重试: ' + error).show();
+                $('#contacts-loading').hide();
+                
+                // 恢复按钮状态
+                refreshBtn.html(originalBtnHtml);
+                refreshBtn.prop('disabled', false);
+            }
+        });
+    }
+    
+    // 分批次加载联系人详细信息
+    function loadContactDetails(contactsList) {
+        if (detailsRequestInProgress) return;
+        
+        // 重置待处理联系人队列
+        pendingContacts = [...contactsList];
+        
+        // 显示加载指示器
+        $('#contacts-loading-details').show();
+        
+        // 开始分批加载
+        processNextBatch();
+    }
+    
+    // 处理下一批联系人详情请求
+    function processNextBatch() {
+        if (pendingContacts.length === 0) {
+            // 所有联系人详情加载完成
+            detailsRequestInProgress = false;
+            $('#contacts-loading-details').hide();
+            console.log('所有联系人详情加载完成');
+            return;
+        }
+        
+        // 设置加载状态
+        detailsRequestInProgress = true;
+        
+        // 获取下一批要处理的联系人(最多20个)
+        const batch = pendingContacts.splice(0, 20);
+        const batchIds = batch.map(c => c.wxid);
+        
+        console.log(`正在加载${batch.length}个联系人详情，剩余${pendingContacts.length}个待加载`);
+        
+        // 更新加载进度指示
+        updateLoadingProgress(contacts.length - pendingContacts.length, contacts.length);
+        
+        // 请求批量详情
+        $.ajax({
+            url: '/api/contacts/details',
+            type: 'POST',
+            dataType: 'json',
+            contentType: 'application/json',
+            data: JSON.stringify({ 
+                wxids: batchIds 
+            }),
+            success: function(response) {
+                if (response.success && response.data) {
+                    // 更新联系人数据
+                    response.data.forEach(detail => {
+                        const index = contacts.findIndex(c => c.wxid === detail.wxid);
+                        if (index !== -1) {
+                            // 合并详情到联系人对象
+                            contacts[index] = {...contacts[index], ...detail};
+                        }
+                    });
+                    
+                    // 更新UI
+                    updateContactsUI();
+                } else {
+                    console.error('获取联系人详情失败:', response.error);
+                }
+                
+                // 继续处理下一批
+                setTimeout(processNextBatch, 500); // 添加500ms延迟，避免过于频繁请求
+            },
+            error: function(xhr, status, error) {
+                console.error('请求联系人详情失败:', error);
+                
+                // 继续处理下一批，即使当前批次失败
+                setTimeout(processNextBatch, 1000); // 出错时增加延迟
+            }
+        });
+    }
+    
+    // 更新加载进度指示
+    function updateLoadingProgress(loaded, total) {
+        const percent = Math.round((loaded / total) * 100);
+        $('#contacts-loading-details-progress').text(`加载详情... ${percent}%`);
+    }
+    
+    // 更新联系人UI
+    function updateContactsUI() {
+        // 更新计数
+        updateContactCounts();
+        
+        // 应用当前过滤器
+        filterContacts(currentFilter);
+    }
+    
+    // 更新联系人计数
+    function updateContactCounts() {
+        $('#all-count').text(contacts.length);
+        $('#friends-count').text(contacts.filter(c => c.type === 'friend').length);
+        $('#groups-count').text(contacts.filter(c => c.type === 'group').length);
+        $('#official-count').text(contacts.filter(c => c.type === 'official').length);
+        $('#starred-count').text(contacts.filter(c => c.starred).length);
+    }
+    
+    // 过滤联系人
+    function filterContacts(filter) {
+        currentFilter = filter;
+        const listTitleEl = $('#contact-list-title');
+        
+        // 根据筛选条件过滤联系人
+        if (filter === 'all') {
+            filteredContacts = [...contacts];
+            listTitleEl.text('所有联系人');
+        } else if (filter === 'friends') {
+            filteredContacts = contacts.filter(c => c.type === 'friend');
+            listTitleEl.text('好友');
+        } else if (filter === 'groups') {
+            filteredContacts = contacts.filter(c => c.type === 'group');
+            listTitleEl.text('群聊');
+        } else if (filter === 'official') {
+            filteredContacts = contacts.filter(c => c.type === 'official');
+            listTitleEl.text('公众号');
+        } else if (filter === 'starred') {
+            filteredContacts = contacts.filter(c => c.starred);
+            listTitleEl.text('星标联系人');
+        }
+        
+        // 更新列表计数
+        $('#contact-list-count').text(filteredContacts.length);
+        
+        // 更新联系人列表
+        renderContactsList(filteredContacts);
+        
+        // 更新活动项
+        $('.list-group-item').removeClass('active');
+        $(`[data-filter="${filter}"]`).addClass('active');
+    }
+    
+    // 渲染联系人列表
+    function renderContactsList(contacts) {
+        const contactsList = $('#contact-list');
+        contactsList.empty();
+        
+        if (contacts.length === 0) {
+            contactsList.html('<div class="text-center py-5 text-muted">没有找到联系人</div>');
+            return;
+        }
+        
+        contacts.forEach(contact => {
+            const statusClass = contact.online ? 'online' : 'offline';
+            const isActive = contact.wxid === currentContactId ? 'active' : '';
+            
+            const contactElement = $(`
+                <div class="contact-item d-flex align-items-center ${isActive}" data-wxid="${contact.wxid}">
+                    <img src="${contact.avatar || '/static/img/default-avatar.png'}" alt="${contact.nickname}" class="contact-avatar me-3">
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">${contact.nickname}</h6>
+                            ${contact.starred ? '<i class="bi bi-star-fill text-warning"></i>' : ''}
+                        </div>
+                        <div class="d-flex align-items-center text-muted small">
+                            <div class="status-dot ${statusClass}"></div>
+                            <span>${contact.wxid}</span>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            contactsList.append(contactElement);
+        });
+        
+        // 添加点击事件
+        $('.contact-item').click(function() {
+            const wxid = $(this).data('wxid');
+                showContactDetail(wxid);
+                
+                // 更新活动项
+            $('.contact-item').removeClass('active');
+            $(`.contact-item[data-wxid="${wxid}"]`).addClass('active');
+        });
+    }
+    
+    // 处理联系人详情
+    function showContactDetail(wxid) {
+        currentContactId = wxid;
+        const contact = contacts.find(c => c.wxid === wxid);
+        
+        if (!contact) {
+            $('#contact-details-content').html('<div class="text-center p-5">无法找到联系人信息</div>');
+            return;
+        }
+        
+        // 更新导航栏选中状态
+        $('.contact-item').removeClass('active');
+        $(`.contact-item[data-wxid="${wxid}"]`).addClass('active');
+        
+        // 显示详情区域，隐藏占位符
+        $('#contact-details-content').removeClass('d-none');
+        $('#contact-details-placeholder').addClass('d-none');
+        
+        // 显示通用联系人信息
+        $('#contact-name').text(contact.name || contact.nickname || '未命名联系人');
+        $('#contact-avatar').attr('src', contact.avatar || '/static/img/favicon.ico');
+        
+        // 根据联系人类型显示不同的详情
+        if (contact.type === 'group') {
+            // 显示群聊详情
+            $('#group-info-section').removeClass('d-none');
+            
+            // 显示群公告加载状态
+            $('#group-announcement-content').html('<div class="text-center"><i class="bi bi-arrow-repeat fa-spin"></i> 加载群公告中...</div>');
+            
+            // 获取群公告
+            fetchGroupAnnouncement(wxid);
+        } else {
+            // 普通联系人详情
+            $('#group-info-section').addClass('d-none');
+            
+            // 更新联系人基本信息
+            $('#contact-wxid').text(contact.wxid || '未知');
+            $('#contact-nickname').text(contact.nickname || '未设置');
+            $('#contact-remark').text(contact.remarks || '未设置');
+            $('#contact-alias').text(contact.alias || '未设置');
+            $('#contact-region').text(contact.region || '未知');
+        }
+    }
+    
+    // 获取群公告
+    function fetchGroupAnnouncement(wxid) {
+        console.log('获取群公告, 群ID:', wxid);
+        
+        $.ajax({
+            url: '/api/group/announcement',
+            type: 'POST',
+            data: JSON.stringify({ wxid: wxid }),
+            contentType: 'application/json',
+            success: function(response) {
+                console.log('群公告API返回:', response);
+                
+                if (response.success) {
+                    // 更新联系人对象中的公告
+                    const contact = contacts.find(c => c.wxid === wxid);
+                    if (contact) {
+                        contact.announcement = response.announcement || '';
+                    }
+                    
+                    // 更新UI显示
+                    if (response.announcement) {
+                        $('#group-announcement-content').text(response.announcement);
+            } else {
+                        $('#group-announcement-content').text('暂无群公告');
+                    }
+                } else {
+                    console.error('获取群公告失败:', response.error);
+                    $('#group-announcement-content').html(`<div class="text-danger">获取群公告失败: ${response.error || '未知错误'}</div>`);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('群公告请求错误:', status, error);
+                $('#group-announcement-content').html(`<div class="text-danger">获取群公告失败: ${error || '网络错误'}</div>`);
+            }
+        });
+    }
+    
+    // 搜索联系人
+    function searchContacts(keyword) {
+        if (!keyword) {
+            filterContacts(currentFilter);
+            return;
+        }
+        
+        const searchResults = contacts.filter(contact => {
+            const searchText = (contact.nickname + ' ' + (contact.remark || '') + ' ' + contact.wxid + ' ' + (contact.alias || '')).toLowerCase();
+            return searchText.includes(keyword.toLowerCase());
+        });
+        
+        filteredContacts = searchResults;
+        $('#contact-list-title').text('搜索结果');
+        $('#contact-list-count').text(searchResults.length);
+        
+        renderContactsList(searchResults);
+    }
+    
+    // 发送消息功能
+    function sendMessage(wxid, content) {
+        if (!wxid || !content) {
+            $('#message-status').html('<span class="text-danger">参数错误</span>');
+            return;
+        }
+        
+        // 显示发送中状态
+        $('#btn-send-message').prop('disabled', true);
+        $('#message-status').html('<span class="text-info">发送中...</span>');
+        
+        // 发送API请求
+        $.ajax({
+            url: '/api/send_message',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                to_wxid: wxid,
+                content: content,
+                at: ""
+            }),
+            success: function(response) {
+                $('#btn-send-message').prop('disabled', false);
+                
+                if (response.success) {
+                    $('#message-status').html('<span class="text-success">发送成功</span>');
+                    // 清空文本框
+                    $('#message-content').val('');
+                    // 2秒后关闭模态框
+                    setTimeout(function() {
+                        $('#send-message-modal').modal('hide');
+                    }, 2000);
+                } else {
+                    $('#message-status').html(`<span class="text-danger">发送失败: ${response.error}</span>`);
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#btn-send-message').prop('disabled', false);
+                $('#message-status').html(`<span class="text-danger">发送失败: ${error}</span>`);
+            }
+        });
+    }
+    
+    // 添加一个全局变量保存选中的联系人
+    let selectedContacts = [];
+    
+    // 页面初始化逻辑
+    $(document).ready(function() {
+        // 初始加载联系人
+        loadContacts();
+        
+        // 点击过滤器
+        $('.list-group-item[data-filter]').click(function(e) {
+                e.preventDefault();
+            const filter = $(this).data('filter');
+            
+            // 更新UI
+            $('.list-group-item[data-filter]').removeClass('active');
+            $(this).addClass('active');
+            
+            // 应用过滤
+                filterContacts(filter);
+            });
+        
+        // 搜索框输入
+        $('#contact-search-input').on('input', function() {
+            searchContacts(this.value);
+        });
+        
+        // 刷新按钮点击
+        $('.refresh-contacts-btn').click(function() {
+            loadContacts(true); // 传入true表示强制刷新
+        });
+        
+        // 点击联系人显示详情
+        $(document).on('click', '.contact-item', function() {
+            const wxid = $(this).data('wxid');
+            const contact = contacts.find(c => c.wxid === wxid);
+            if (contact) {
+                showContactDetail(wxid);
+                
+                // 启用发送消息按钮
+                $('#send-message-btn').prop('disabled', false);
+            }
+        });
+        
+        // 发送消息按钮点击
+        $('#send-message-btn').click(function() {
+            const contact = contacts.find(c => c.wxid === currentContactId);
+            if (!contact) return;
+            
+            // 设置模态框数据
+            $('#recipient-name').val(contact.name || contact.nickname || contact.wxid);
+            $('#recipient-wxid').val(contact.wxid);
+            $('#message-content').val('');
+            $('#message-status').text('');
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('send-message-modal'));
+            modal.show();
+        });
+        
+        // 消息发送按钮点击
+        $('#btn-send-message').click(function() {
+            const wxid = $('#recipient-wxid').val();
+            const content = $('#message-content').val().trim();
+            
+            if (!content) {
+                $('#message-status').html('<span class="text-danger">请输入消息内容</span>');
+                return;
+            }
+            
+            sendMessage(wxid, content);
+        });
+        
+        // 消息模态框聚焦文本框
+        $('#send-message-modal').on('shown.bs.modal', function() {
+            $('#message-content').focus();
+        });
+        
+        // 消息文本框回车发送
+        $('#message-content').keypress(function(e) {
+            if (e.which === 13 && !e.shiftKey) {
+                e.preventDefault();
+                $('#btn-send-message').click();
+            }
+        });
+        
+        // 添加批量发送消息按钮
+        $('<button>')
+            .attr('id', 'batch-send-btn')
+            .addClass('btn btn-info action-button ms-2')
+            .html('<i class="bi bi-chat-square-dots"></i> 批量发送')
+            .insertAfter('#send-message-btn');
+        
+        // 批量发送按钮点击事件
+        $('#batch-send-btn').click(function() {
+            // 准备联系人列表
+            initBatchSendModal();
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('batch-send-modal'));
+            modal.show();
+        });
+        
+        // 批量发送模态框中的全选/取消全选按钮
+        $('#select-all-contacts').click(function() {
+            $('.batch-contact-checkbox').prop('checked', true);
+            updateSelectedContactsCount();
+        });
+        
+        $('#deselect-all-contacts').click(function() {
+            $('.batch-contact-checkbox').prop('checked', false);
+            updateSelectedContactsCount();
+        });
+        
+        // 搜索联系人
+        $('#batch-contact-search').on('input', function() {
+            filterBatchContacts($(this).val());
+        });
+        
+        $('#batch-contact-search-btn').click(function() {
+            filterBatchContacts($('#batch-contact-search').val());
+        });
+        
+        // 延迟设置的显示/隐藏
+        $('#send-delay-check').change(function() {
+            if($(this).is(':checked')) {
+                $('#delay-settings').show();
+            } else {
+                $('#delay-settings').hide();
+            }
+        });
+        
+        // 更新延迟值显示
+        $('#delay-seconds').on('input', function() {
+            $('#delay-value').text($(this).val());
+        });
+        
+        // 批量发送按钮点击事件
+        $('#btn-batch-send').click(function() {
+            batchSendMessages();
+        });
+        
+        // 添加模态框管理函数
+        function initModalManager() {
+            // 移除所有已存在的backdrop
+            $('.modal-backdrop').remove();
+            
+            // 监听模态框事件
+            $('.modal').on('show.bs.modal', function() {
+                // 移除其他模态框的背景
+                $('.modal-backdrop').remove();
+                
+                // 设置body样式
+                $('body').addClass('modal-open').css('overflow', 'hidden');
+            });
+            
+            $('.modal').on('hidden.bs.modal', function() {
+                // 清理模态框相关样式
+                $('.modal-backdrop').remove();
+                if ($('.modal.show').length === 0) {
+                    $('body').removeClass('modal-open').css('overflow', '');
+                }
+            });
+            
+            // 添加点击外部关闭功能
+            $('.modal').on('click', function(e) {
+                if ($(e.target).hasClass('modal')) {
+                    $(this).modal('hide');
+                }
+            });
+        }
+        
+        // 页面加载完成后初始化
+        initModalManager();
+    });
+
+    // 初始化批量发送模态框
+    function initBatchSendModal() {
+        // 重置状态
+        selectedContacts = [];
+        $('#batch-message-content').val('');
+        $('#batch-status').text('');
+        $('#batch-progress-container').hide();
+        $('#send-delay-check').prop('checked', false);
+        $('#delay-settings').hide();
+        $('#delay-seconds').val(1);
+        $('#delay-value').text('1');
+        
+        // 填充联系人列表
+        populateBatchContactsList();
+    }
+    
+    // 填充批量发送的联系人列表
+    function populateBatchContactsList() {
+        const container = $('#batch-contacts-list');
+        container.empty();
+        
+        if (contacts.length === 0) {
+            container.html('<div class="text-center py-4 text-muted">没有找到联系人</div>');
+            return;
+        }
+        
+        // 筛选出可发送消息的联系人（好友和群）
+        const validContacts = contacts.filter(c => c.type === 'friend' || c.type === 'group');
+        
+        // 按类型排序：先好友后群聊
+        validContacts.sort((a, b) => {
+            if (a.type === b.type) {
+                return a.nickname.localeCompare(b.nickname);
+            }
+            return a.type === 'friend' ? -1 : 1;
+        });
+        
+        // 创建分组
+        const friendsContainer = $('<div class="mb-3"></div>');
+        friendsContainer.append('<div class="fw-bold mb-2">好友</div>');
+        
+        const groupsContainer = $('<div></div>');
+        groupsContainer.append('<div class="fw-bold mb-2">群聊</div>');
+        
+        // 填充联系人列表
+        validContacts.forEach(contact => {
+            const item = $(`
+                <div class="form-check">
+                    <input class="form-check-input batch-contact-checkbox" type="checkbox" value="${contact.wxid}" id="contact-${contact.wxid}">
+                    <label class="form-check-label d-flex align-items-center" for="contact-${contact.wxid}">
+                        <img src="${contact.avatar || '/static/img/default-avatar.png'}" class="me-2" style="width: 24px; height: 24px; border-radius: 12px;">
+                        <span>${contact.nickname || contact.wxid}</span>
+                    </label>
+                </div>
+            `);
+            
+            if (contact.type === 'friend') {
+                friendsContainer.append(item);
+            } else {
+                groupsContainer.append(item);
+            }
+        });
+        
+        // 添加到容器
+        container.append(friendsContainer);
+        container.append(groupsContainer);
+        
+        // 给复选框添加事件
+        $('.batch-contact-checkbox').change(function() {
+            updateSelectedContactsCount();
+        });
+        
+        // 初始化选中数量
+        updateSelectedContactsCount();
+    }
+    
+    // 更新选中的联系人数量
+    function updateSelectedContactsCount() {
+        const count = $('.batch-contact-checkbox:checked').length;
+        $('#selected-contacts-count').text(count);
+    }
+    
+    // 筛选批量发送联系人列表
+    function filterBatchContacts(keyword) {
+        if (!keyword) {
+            // 如果没有关键词则显示所有
+            $('.form-check').show();
+            return;
+        }
+        
+        keyword = keyword.toLowerCase();
+        
+        // 遍历所有联系人
+        $('.form-check').each(function() {
+            const label = $(this).find('label').text().toLowerCase();
+            const value = $(this).find('input').val().toLowerCase();
+            
+            if (label.includes(keyword) || value.includes(keyword)) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    }
+    
+    // 批量发送消息
+    async function batchSendMessages() {
+        // 获取选中的联系人
+        const selectedWxids = $('.batch-contact-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        // 获取消息内容
+        const content = $('#batch-message-content').val().trim();
+        
+        // 验证
+        if (selectedWxids.length === 0) {
+            $('#batch-status').html('<span class="text-danger">请至少选择一个联系人</span>');
+            return;
+        }
+        
+        if (!content) {
+            $('#batch-status').html('<span class="text-danger">请输入消息内容</span>');
+            return;
+        }
+        
+        // 设置按钮状态
+        $('#btn-batch-send').prop('disabled', true);
+        $('#batch-status').html('<span class="text-info">正在发送消息...</span>');
+        
+        // 显示进度条
+        $('#batch-progress-container').show();
+        $('#batch-progress-bar').css('width', '0%');
+        
+        // 获取延迟设置
+        const useDelay = $('#send-delay-check').is(':checked');
+        const delaySeconds = parseInt($('#delay-seconds').val());
+        
+        // 记录成功和失败的数量
+        let successCount = 0;
+        let failCount = 0;
+        
+        // 逐个发送消息
+        for (let i = 0; i < selectedWxids.length; i++) {
+            const wxid = selectedWxids[i];
+            const contact = contacts.find(c => c.wxid === wxid);
+            const contactName = contact ? (contact.nickname || wxid) : wxid;
+            
+            // 更新状态
+            const percent = Math.round((i / selectedWxids.length) * 100);
+            $('#batch-progress-bar').css('width', percent + '%');
+            $('#batch-status').html(`<span class="text-info">正在发送给 ${contactName} (${i+1}/${selectedWxids.length})...</span>`);
+            
+            try {
+                // 发送消息
+                const response = await $.ajax({
+                    url: '/api/send_message',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        to_wxid: wxid,
+                        content: content,
+                        at: ""
+                    })
+                });
+                
+                if (response.success) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    console.error(`发送给 ${contactName} 失败: ${response.error}`);
+                }
+                
+                // 添加延迟
+                if (useDelay && i < selectedWxids.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+                }
+            } catch (error) {
+                failCount++;
+                console.error(`发送给 ${contactName} 时出错:`, error);
+            }
+        }
+        
+        // 更新最终状态
+        $('#batch-progress-bar').css('width', '100%');
+        $('#batch-status').html(`<span class="text-success">发送完成! 成功: ${successCount}, 失败: ${failCount}</span>`);
+        
+        // 恢复按钮状态
+        $('#btn-batch-send').prop('disabled', false);
+        
+        // 5秒后自动关闭对话框
+        if (failCount === 0) {
+            setTimeout(function() {
+                $('#batch-send-modal').modal('hide');
+            }, 5000);
+        }
+    }
+</script>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %} 

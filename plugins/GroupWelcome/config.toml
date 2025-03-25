@@ -1,0 +1,4 @@
+[GroupWelcome]
+enable = true
+welcome-message = "👆点我查看XXXBot文档！"
+url = "https://github.com/NanSsye"

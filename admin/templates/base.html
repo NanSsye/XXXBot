@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}XXXBOT管理后台{% endblock %}</title>
+    
+    <!-- 更新到Bootstrap 5.3版本 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap图标 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- 添加动画库 -->
+    <link href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" rel="stylesheet">
+    
+    <!-- 添加AOS滚动动画库 -->
+    <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
+    
+    <!-- 设计系统字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- 添加自定义CSS -->
+    <link href="/static/css/admin.css" rel="stylesheet">
+    
+    <!-- 添加渐变色背景和设计元素 -->
+    <style>
+        body {
+            background: linear-gradient(135deg, #F8F9FA 0%, #ECF0F1 100%);
+            min-height: 100vh;
+            position: relative;
+        }
+        
+        .gradient-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(52, 152, 219, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 90% 80%, rgba(46, 204, 113, 0.05) 0%, transparent 70%),
+                radial-gradient(circle at 50% 50%, rgba(236, 240, 241, 0.1) 0%, transparent 60%);
+        }
+        
+        .design-circle {
+            position: fixed;
+            border-radius: 50%;
+            z-index: -1;
+        }
+        
+        .design-circle-1 {
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(44, 62, 80, 0.05) 100%);
+            top: -150px;
+            right: -150px;
+        }
+        
+        .design-circle-2 {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.05) 0%, rgba(241, 196, 15, 0.03) 100%);
+            bottom: -100px;
+            left: -100px;
+        }
+        
+        .logo-text {
+            font-weight: 700;
+            background: linear-gradient(45deg, #3498DB, #2C3E50);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* Material Design inspired card */
+        .mat-card {
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .mat-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="animate__animated animate__fadeIn">
+    
+    <!-- 渐变背景和设计元素 -->
+    <div class="gradient-overlay"></div>
+    <div class="design-circle design-circle-1"></div>
+    <div class="design-circle design-circle-2"></div>
+    
+    <!-- 侧边栏 -->
+    <nav class="sidebar animate__animated animate__slideInLeft">
+        <div class="sidebar-header">
+            <h3 class="mb-0">
+                <i class="bi bi-robot me-2"></i>
+                <span>XXXBOT</span>
+            </h3>
+            <p class="text-white-50 mb-0 small">管理后台</p>
+        </div>
+        
+        <div class="sidebar-menu mt-4">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %} ripple">
+                        <i class="bi bi-house-door"></i>
+                        <span>控制面板</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/plugins" class="nav-link {% if request.path == '/plugins' %}active{% endif %} ripple">
+                        <i class="bi bi-puzzle"></i>
+                        <span>插件管理</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/files" class="nav-link {% if request.path == '/files' %}active{% endif %} ripple">
+                        <i class="bi bi-folder"></i>
+                        <span>文件管理</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/contacts" class="nav-link {% if request.path == '/contacts' %}active{% endif %} ripple">
+                        <i class="bi bi-people"></i>
+                        <span>联系人</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/system" class="nav-link {% if request.path == '/system' %}active{% endif %} ripple">
+                        <i class="bi bi-gear"></i>
+                        <span>系统状态</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-4">
+                    <a href="/qrcode" class="nav-link special-link ripple">
+                        <i class="bi bi-qr-code"></i>
+                        <span>登录二维码</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="sidebar-footer">
+            <span>© 2025 老夏的金库</span>
+        </div>
+    </nav>
+    
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <!-- 顶部导航栏 -->
+        <nav class="navbar navbar-expand navbar-light topbar mb-4 shadow-sm rounded animate__animated animate__fadeInDown">
+            <div class="container-fluid">
+                <div class="d-flex align-items-center">
+                    <h1 class="h4 mb-0 text-gray-800">{% block page_title %}控制面板{% endblock %}</h1>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- 主要内容区 -->
+        <div class="content-wrapper" data-aos="fade-up">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <!-- 页脚 -->
+        <footer class="footer mt-5 py-3 text-center animate__animated animate__fadeInUp">
+            <div class="container">
+                <span class="text-muted">XXXBot © 2025 - 技术支持 <a href="#" class="text-decoration-none">XXXTeam</a></span>
+                <div class="mt-2">
+                    <a href="https://github.com/NanSsye" class="btn btn-sm btn-outline-secondary me-1">
+                        <i class="bi bi-github"></i>
+                    </a>
+                    <a href="#" class="btn btn-sm btn-outline-secondary me-1">
+                        <i class="bi bi-discord"></i>
+                    </a>
+                    <a href="#" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-question-circle"></i> 帮助
+                    </a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast通知组件 -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <!-- 通知会动态添加到这里 -->
+    </div>
+    
+    <!-- 加载Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 加载AOS滚动动画库 -->
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    
+    <!-- 加载Chart.js图表库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.0.1/dist/chart.umd.min.js"></script>
+    
+    <!-- 自定义JS -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化AOS动画
+            AOS.init({
+                duration: 800,
+                easing: 'ease-in-out',
+                once: true,
+                offset: 50
+            });
+            
+            // 初始化所有提示框
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            
+            // 显示通知函数
+            window.showToast = function(title, message, type = 'info') {
+                const toastContainer = document.querySelector('.toast-container');
+                
+                const toastEl = document.createElement('div');
+                toastEl.className = `toast animate__animated animate__fadeInRight bg-${type} text-white`;
+                toastEl.setAttribute('role', 'alert');
+                toastEl.setAttribute('aria-live', 'assertive');
+                toastEl.setAttribute('aria-atomic', 'true');
+                
+                const toastHeader = document.createElement('div');
+                toastHeader.className = 'toast-header bg-transparent text-white';
+                
+                const strongEl = document.createElement('strong');
+                strongEl.className = 'me-auto';
+                strongEl.textContent = title;
+                
+                const timeEl = document.createElement('small');
+                timeEl.textContent = '刚刚';
+                
+                const closeButton = document.createElement('button');
+                closeButton.type = 'button';
+                closeButton.className = 'btn-close btn-close-white';
+                closeButton.setAttribute('data-bs-dismiss', 'toast');
+                closeButton.setAttribute('aria-label', '关闭');
+                
+                toastHeader.appendChild(strongEl);
+                toastHeader.appendChild(timeEl);
+                toastHeader.appendChild(closeButton);
+                
+                const toastBody = document.createElement('div');
+                toastBody.className = 'toast-body';
+                toastBody.textContent = message;
+                
+                toastEl.appendChild(toastHeader);
+                toastEl.appendChild(toastBody);
+                
+                toastContainer.appendChild(toastEl);
+                
+                const toast = new bootstrap.Toast(toastEl, {
+                    animation: true,
+                    autohide: true,
+                    delay: 3000
+                });
+                
+                toast.show();
+                
+                // 动画结束后移除DOM元素
+                toastEl.addEventListener('hidden.bs.toast', function () {
+                    toastContainer.removeChild(toastEl);
+                });
+            };
+
+            // 添加波纹效果
+            const rippleButtons = document.querySelectorAll('.ripple');
+            rippleButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    const rect = this.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    
+                    const ripple = document.createElement('span');
+                    ripple.className = 'ripple-effect';
+                    ripple.style.left = `${x}px`;
+                    ripple.style.top = `${y}px`;
+                    
+                    this.appendChild(ripple);
+                    
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 600);
+                });
+            });
+        });
+    </script>
+    
+    <!-- 通用模态窗口管理 -->
+    <script src="/admin/static/js/custom.js?v={{ version }}"></script>
+    
+    <!-- 页面特定的JS -->
+    {% block extra_js %}{% endblock %}
+    
+    <!-- 模态框容器 -->
+    {% block modals %}{% endblock %}
+</body>
+</html> 

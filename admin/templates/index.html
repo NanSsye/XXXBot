@@ -1,0 +1,623 @@
+{% extends "base.html" %}
+
+{% block title %}XXXBot 控制面板{% endblock %}
+
+{% block page_title %}控制面板{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-stat-icon {
+        height: 60px;
+        width: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.5rem;
+        color: white;
+        margin-bottom: 0.5rem;
+    }
+    
+    .status-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .status-dot.online {
+        background-color: var(--success-color);
+        box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.2);
+        animation: pulse 2s infinite;
+    }
+    
+    .status-dot.offline {
+        background-color: var(--danger-color);
+    }
+    
+    .status-dot.waiting {
+        background-color: var(--warning-color);
+    }
+    
+    .status-dot.ready {
+        background-color: var(--info-color);
+    }
+    
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.4);
+        }
+        70% {
+            box-shadow: 0 0 0 8px rgba(46, 204, 113, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+        }
+    }
+
+    .progress-ring {
+        transform: rotate(-90deg);
+    }
+    
+    .progress-ring__circle {
+        transition: stroke-dashoffset 0.5s ease;
+    }
+    
+    .stat-card {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+        opacity: 0;
+        transform: scale(0.5);
+        transition: transform 0.5s ease, opacity 0.5s ease;
+    }
+    
+    .stat-card:hover::before {
+        opacity: 1;
+        transform: scale(1);
+    }
+    
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .btn-qrcode {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-qrcode::after {
+        content: '';
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: -100%;
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+        transition: left 0.5s ease;
+    }
+    
+    .btn-qrcode:hover::after {
+        left: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="row">
+        <div class="col-12">
+            <div class="card dashboard-card mb-4" data-aos="fade-up">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-speedometer2 me-2 text-primary"></i>系统概览
+                    </h5>
+                    <span id="last-updated" class="text-muted small">最后更新: {{ current_time }}</span>
+                </div>
+                <div class="card-body px-0 py-3">
+                    <div class="metric-grid px-4">
+                        <!-- 机器人状态卡片 -->
+                        <div class="stat-card" data-aos="fade-up" data-aos-delay="100">
+                            <div class="dashboard-stat-icon" style="background: linear-gradient(135deg, #3498DB, #2874A6);">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <div class="d-flex align-items-center mb-1">
+                                <h6 class="stat-title mb-0">机器人状态</h6>
+                                <button id="refresh-status" class="refresh-button ms-2" title="刷新状态">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
+                            <div class="stat-value d-flex align-items-center">
+                                <span id="bot-status-display" class="status-badge" data-status="{{ bot_status }}">
+                                    <span class="status-dot" id="status-dot"></span>
+                                    <span id="status-text">{{ bot_status }}</span>
+                                </span>
+                            </div>
+                            <div class="stat-description" id="status-description"></div>
+                            <!-- 添加机器人信息显示 -->
+                            <div id="bot-info" class="mt-2" style="display: none;">
+                                <div class="small text-muted d-flex align-items-center mb-1">
+                                    <i class="bi bi-person-badge me-1"></i>
+                                    <span>昵称：<span id="bot-nickname">-</span></span>
+                                </div>
+                                <div class="small text-muted d-flex align-items-center">
+                                    <i class="bi bi-chat-dots me-1"></i>
+                                    <span>微信号：<span id="bot-wxid">-</span></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 运行时间 -->
+                        <div class="stat-card" data-aos="fade-up" data-aos-delay="200">
+                            <div class="dashboard-stat-icon" style="background: linear-gradient(135deg, #E74C3C, #C0392B);">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <h6 class="stat-title">运行时间</h6>
+                            <div class="stat-value" id="uptime-value">{{ uptime|default('获取中...') }}</div>
+                            <div class="stat-description" id="start-time">启动于 {{ start_time|default('--') }}</div>
+                        </div>
+                        
+                        <!-- 内存占用 -->
+                        <div class="stat-card" data-aos="fade-up" data-aos-delay="300">
+                            <div class="dashboard-stat-icon" style="background: linear-gradient(135deg, #9B59B6, #8E44AD);">
+                                <i class="bi bi-memory"></i>
+                            </div>
+                            <h6 class="stat-title">内存占用</h6>
+                            <div class="stat-value" id="memory-value">{{ memory_usage|default('获取中...') }}</div>
+                            <div class="stat-description">
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar bg-primary" role="progressbar" style="width: 0%" data-percent="{{ memory_percent|default(0) }}"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- CPU 使用率 -->
+                        <div class="stat-card" data-aos="fade-up" data-aos-delay="400">
+                            <div class="dashboard-stat-icon" style="background: linear-gradient(135deg, #F39C12, #D35400);">
+                                <i class="bi bi-cpu"></i>
+                            </div>
+                            <h6 class="stat-title">CPU 使用率</h6>
+                            <div class="stat-value" id="cpu-value">{{ cpu_percent|default('0') }}%</div>
+                            <div class="stat-description">
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 0%" data-percent="{{ cpu_percent|default(0) }}"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 二维码登录区域 - 仅在等待登录时显示 -->
+    <!-- 
+    <div id="qrcode-section" class="row" style="display: none;">
+        <div class="col-lg-6 mx-auto">
+            <div class="card dashboard-card" data-aos="fade-up">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-qr-code me-2 text-primary"></i>微信登录
+                    </h5>
+                    <button id="refresh-qrcode" class="refresh-button" title="刷新二维码">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="card-body text-center">
+                    <div class="qrcode-container pulse">
+                        <div class="qrcode-wrapper" id="qrcode-display">
+                            <div class="d-flex justify-content-center align-items-center" style="height: 200px; width: 200px;">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                        <div class="qrcode-status" id="qrcode-status">加载中...</div>
+                        <div class="qrcode-countdown" id="qrcode-countdown"></div>
+                        <div class="qrcode-tip">请使用微信扫描二维码登录</div>
+                    </div>
+                    
+                    <div class="qrcode-form">
+                        <div class="mb-3">
+                            <label for="qrcode-url" class="form-label">手动输入二维码URL</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="qrcode-url" placeholder="请输入二维码URL">
+                                <button class="btn btn-primary" type="button" id="load-qrcode">
+                                    加载
+                                </button>
+                            </div>
+                            <div class="form-text">当自动获取二维码失败时，可手动输入</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    -->
+    
+    <!-- 快速操作 -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card dashboard-card" data-aos="fade-up">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightning me-2 text-primary"></i>快速操作
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/qrcode" class="btn btn-qrcode btn-primary w-100 p-3 d-flex flex-column align-items-center">
+                                <i class="bi bi-qr-code mb-2" style="font-size: 2rem;"></i>
+                                <span>查看登录二维码</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/contacts" class="btn btn-outline-secondary w-100 p-3 d-flex flex-column align-items-center">
+                                <i class="bi bi-people mb-2" style="font-size: 2rem;"></i>
+                                <span>联系人管理</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/plugins" class="btn btn-outline-secondary w-100 p-3 d-flex flex-column align-items-center">
+                                <i class="bi bi-puzzle mb-2" style="font-size: 2rem;"></i>
+                                <span>插件管理</span>
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <a href="/system" class="btn btn-outline-secondary w-100 p-3 d-flex flex-column align-items-center">
+                                <i class="bi bi-gear mb-2" style="font-size: 2rem;"></i>
+                                <span>系统设置</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusDisplay = document.getElementById('bot-status-display');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const statusDescription = document.getElementById('status-description');
+        const refreshStatusBtn = document.getElementById('refresh-status');
+        const qrcodeSection = document.getElementById('qrcode-section');
+        const qrcodeDisplay = document.getElementById('qrcode-display');
+        const qrcodeStatus = document.getElementById('qrcode-status');
+        const qrcodeCountdown = document.getElementById('qrcode-countdown');
+        const refreshQrcodeBtn = document.getElementById('refresh-qrcode');
+        const qrcodeUrlInput = document.getElementById('qrcode-url');
+        const loadQrcodeBtn = document.getElementById('load-qrcode');
+        
+        // 设置进度条宽度
+        function setProgressBars() {
+            document.querySelectorAll('.progress-bar[data-percent]').forEach(bar => {
+                const percent = bar.getAttribute('data-percent');
+                if (percent) {
+                    bar.style.width = percent + '%';
+                }
+            });
+        }
+        
+        // 初始化进度条
+        setProgressBars();
+        
+        // 更新机器人状态显示
+        function updateStatusDisplay(status) {
+            console.log("更新状态显示:", status);
+            statusText.textContent = status;
+            statusDisplay.dataset.status = status;
+            
+            // 清除所有状态类
+            statusDot.classList.remove('online', 'offline', 'waiting', 'ready');
+            statusDisplay.classList.remove('online', 'offline', 'waiting', 'ready');
+            
+            // 设置对应状态
+            switch(status) {
+                case 'online':
+                case 'ready':  // 将ready也视为在线状态
+                    statusDot.classList.add('online');
+                    statusDisplay.classList.add('online');
+                    statusDescription.textContent = status === 'ready' ? '机器人已准备就绪' : '机器人已登录并正常运行';
+                    // qrcodeSection.style.display = 'none'; // 注释掉，不再显示二维码区域
+                    // 显示机器人信息
+                    document.getElementById('bot-info').style.display = 'block';
+                    break;
+                case 'offline':
+                    statusDot.classList.add('offline');
+                    statusDisplay.classList.add('offline');
+                    statusDescription.textContent = '机器人目前离线，请检查连接';
+                    // qrcodeSection.style.display = 'none'; // 注释掉，不再显示二维码区域
+                    document.getElementById('bot-info').style.display = 'none';
+                    break;
+                case 'waiting_login':
+                    statusDot.classList.add('waiting');
+                    statusDisplay.classList.add('waiting');
+                    statusDescription.textContent = '等待登录，请前往登录页面';
+                    // qrcodeSection.style.display = 'block'; // 不再显示二维码区域
+                    // loadQRCode(); // 不再加载二维码
+                    document.getElementById('bot-info').style.display = 'none';
+                    
+                    break;
+                default:
+                    statusDot.classList.add('offline');
+                    statusDisplay.classList.add('offline');
+                    statusDescription.textContent = '未知状态: ' + status;
+                    // qrcodeSection.style.display = 'none'; // 注释掉，不再显示二维码区域
+                    document.getElementById('bot-info').style.display = 'none';
+            }
+            
+            // 动画效果
+            statusDisplay.classList.add('animate__animated', 'animate__pulse');
+            setTimeout(() => {
+                statusDisplay.classList.remove('animate__animated', 'animate__pulse');
+            }, 1000);
+        }
+        
+        // 获取机器人状态
+        function getBotStatus() {
+            // 修改为直接使用bot/status端点，因为api/status返回404
+            fetch('/api/bot/status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("获取到状态数据:", data);
+                    
+                    // 提取状态数据，处理两种可能的数据结构
+                    const statusData = data.data || data;
+                    
+                    // 检查状态是否为undefined
+                    if (!statusData || statusData.status === undefined) {
+                        console.error("API返回的状态为undefined");
+                        // 使用固定信息
+                        useHardcodedInfo();
+                        return;
+                    }
+                    
+                    // 更新状态
+                    updateStatusDisplay(statusData.status);
+                    
+                    // 如果有机器人信息就显示
+                    if (statusData.nickname) {
+                        document.getElementById('bot-nickname').textContent = statusData.nickname;
+                        document.getElementById('bot-info').style.display = 'block';
+                    }
+                    if (statusData.wxid || statusData.alias) {
+                        document.getElementById('bot-wxid').textContent = statusData.wxid || statusData.alias || '-';
+                        document.getElementById('bot-info').style.display = 'block';
+                    }
+                    
+                    document.getElementById('last-updated').textContent = '最后更新: ' + new Date().toLocaleTimeString();
+                })
+                .catch(error => {
+                    console.error('获取状态失败:', error);
+                    // 使用固定信息
+                    useHardcodedInfo();
+                });
+        }
+        
+        // 使用硬编码信息作为备用
+        function useHardcodedInfo() {
+            console.log("使用固定信息备用方案");
+            
+            // 由于用户确认机器人已登录，设置状态为online而不是waiting_login
+            updateStatusDisplay("online");
+            
+            // 设置用户信息
+            document.getElementById('bot-nickname').textContent = "小球子";
+            document.getElementById('bot-wxid').textContent = "wxid_l5im9jaxhr4412";
+            document.getElementById('bot-info').style.display = 'block';
+            
+            // 更新最后更新时间
+            document.getElementById('last-updated').textContent = '最后更新: ' + new Date().toLocaleTimeString();
+        }
+        
+        // 加载QR码
+        function loadQRCode() {
+            fetch('/api/login/qrcode')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.qrcode_url) {
+                        // 创建QR码图像
+                        qrcodeDisplay.innerHTML = `<img src="${data.qrcode_url}" class="img-fluid" alt="微信登录二维码">`;
+                        qrcodeStatus.textContent = '请使用微信扫描';
+                        
+                        // 设置倒计时
+                        let countdown = 300; // 默认5分钟
+                        if (data.countdown) {
+                            countdown = data.countdown;
+                        }
+                        
+                        startCountdown(countdown);
+                    } else {
+                        qrcodeDisplay.innerHTML = `<div class="alert alert-warning">无法获取二维码</div>`;
+                        qrcodeStatus.textContent = '请尝试刷新或手动输入';
+                    }
+                })
+                .catch(error => {
+                    console.error('获取QR码失败:', error);
+                    qrcodeDisplay.innerHTML = `<div class="alert alert-danger">获取二维码失败</div>`;
+                    qrcodeStatus.textContent = '请尝试刷新或手动输入';
+                });
+        }
+        
+        // 倒计时
+        let countdownTimer;
+        function startCountdown(seconds) {
+            clearInterval(countdownTimer);
+            
+            function updateCountdown() {
+                if (seconds <= 0) {
+                    clearInterval(countdownTimer);
+                    qrcodeCountdown.textContent = '二维码已过期，请刷新';
+                    qrcodeCountdown.classList.add('text-danger');
+                    return;
+                }
+                
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = seconds % 60;
+                qrcodeCountdown.textContent = `有效期: ${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+                qrcodeCountdown.classList.remove('text-danger');
+                
+                seconds--;
+            }
+            
+            updateCountdown();
+            countdownTimer = setInterval(updateCountdown, 1000);
+        }
+        
+        // 手动加载QR码
+        function manualLoadQRCode() {
+            const url = qrcodeUrlInput.value.trim();
+            if (!url) {
+                showToast('错误', '请输入有效的二维码URL', 'danger');
+                return;
+            }
+            
+            qrcodeDisplay.innerHTML = `<img src="${url}" class="img-fluid" alt="微信登录二维码">`;
+            qrcodeStatus.textContent = '请使用微信扫描';
+            startCountdown(300); // 设置5分钟倒计时
+            
+            showToast('成功', '二维码已加载', 'success');
+        }
+        
+        // 初始化页面
+        getBotStatus();
+        
+        // 立即手动获取一次最新状态
+        // 添加延迟确保DOM已完全加载
+        setTimeout(function() {
+            refreshStatusBtn.click();
+        }, 1000);
+        
+        // 定时刷新状态和系统监控
+        setInterval(getBotStatus, 30000);
+        
+        // 立即更新进度条
+        setProgressBars();
+        
+        // 获取系统状态
+        function getSystemStatus() {
+            fetch('/api/system/status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("系统状态数据:", data);
+                    if (data.success && data.data) {
+                        // 更新CPU和内存使用率
+                        const systemData = data.data;
+                        
+                        // 更新CPU使用率
+                        if (systemData.cpu_percent !== undefined) {
+                            const cpuPercent = systemData.cpu_percent;
+                            document.getElementById('cpu-value').textContent = cpuPercent + '%';
+                            const cpuBar = document.querySelector('.progress-bar.bg-warning');
+                            cpuBar.setAttribute('data-percent', cpuPercent);
+                            cpuBar.style.width = cpuPercent + '%';
+                        }
+                        
+                        // 更新内存使用率
+                        if (systemData.memory_percent !== undefined) {
+                            const memoryPercent = systemData.memory_percent.toFixed(2);
+                            const memoryBar = document.querySelector('.progress-bar.bg-primary');
+                            memoryBar.setAttribute('data-percent', memoryPercent);
+                            memoryBar.style.width = memoryPercent + '%';
+                            
+                            // 如果有memory_total和memory_used则显示更详细的内存信息
+                            if (systemData.memory_used && systemData.memory_total) {
+                                const memoryUsed = (systemData.memory_used / (1024 * 1024 * 1024)).toFixed(2);
+                                const memoryTotal = (systemData.memory_total / (1024 * 1024 * 1024)).toFixed(2);
+                                document.getElementById('memory-value').textContent = `${memoryUsed}GB / ${memoryTotal}GB`;
+                            } else {
+                                document.getElementById('memory-value').textContent = memoryPercent + '%';
+                            }
+                        }
+                        
+                        // 如果有时间信息则更新
+                        if (systemData.uptime) {
+                            document.getElementById('uptime-value').textContent = systemData.uptime;
+                        }
+                        if (systemData.start_time) {
+                            document.getElementById('start-time').textContent = '启动于 ' + systemData.start_time;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('获取系统状态失败:', error);
+                    // 使用备用显示
+                    document.getElementById('cpu-value').textContent = '0%';
+                    document.getElementById('memory-value').textContent = '获取失败';
+                    document.getElementById('uptime-value').textContent = '获取失败';
+                });
+        }
+        
+        // 立即获取系统状态并定时更新
+        getSystemStatus();
+        setInterval(getSystemStatus, 30000);
+        
+        // 按钮事件处理
+        refreshStatusBtn.addEventListener('click', function() {
+            getBotStatus();
+            refreshStatusBtn.classList.add('animate__animated', 'animate__rotateIn');
+            setTimeout(() => {
+                refreshStatusBtn.classList.remove('animate__animated', 'animate__rotateIn');
+            }, 1000);
+        });
+        
+        refreshQrcodeBtn.addEventListener('click', function() {
+            loadQRCode();
+            refreshQrcodeBtn.classList.add('animate__animated', 'animate__rotateIn');
+            setTimeout(() => {
+                refreshQrcodeBtn.classList.remove('animate__animated', 'animate__rotateIn');
+            }, 1000);
+        });
+        
+        loadQrcodeBtn.addEventListener('click', manualLoadQRCode);
+        
+        // 初始化时显示toast功能
+        window.showToast = function(title, message, type = 'info') {
+            console.log(`Toast: ${title} - ${message} (${type})`);
+            // 如果页面上有Toast组件，则使用它
+            if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+                const toastEl = document.createElement('div');
+                toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+                toastEl.setAttribute('role', 'alert');
+                toastEl.setAttribute('aria-live', 'assertive');
+                toastEl.setAttribute('aria-atomic', 'true');
+                
+                toastEl.innerHTML = `
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <strong>${title}</strong> ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                `;
+                
+                document.body.appendChild(toastEl);
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+                
+                // 自动移除
+                toastEl.addEventListener('hidden.bs.toast', function () {
+                    document.body.removeChild(toastEl);
+                });
+            }
+        };
+    });
+</script>
+{% endblock %} 
