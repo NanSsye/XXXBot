@@ -406,47 +406,127 @@
     document.addEventListener('DOMContentLoaded', function() {
         // 获取系统信息
         function getSystemInfo() {
+            // 获取系统基本信息
             fetch('/api/system/info')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.data) {
-                        console.log('系统信息:', data.data);
-                        const systemInfo = data.data;
-                        
-                        // 更新系统信息表格
-                        const rows = document.querySelectorAll('.system-info-table tr');
-                        for (const row of rows) {
-                            const firstCell = row.querySelector('td:first-child');
-                            const secondCell = row.querySelector('td:last-child');
-                            
-                            if (!firstCell || !secondCell) continue;
-                            
-                            const label = firstCell.textContent.trim();
-                            
-                            if (label === '主机名') {
-                                secondCell.textContent = systemInfo.hostname || '加载失败';
-                            } else if (label === '操作系统') {
-                                secondCell.textContent = systemInfo.platform || '加载失败';
-                            } else if (label === 'Python版本') {
-                                secondCell.textContent = systemInfo.python_version || '加载失败';
-                            } else if (label === 'CPU核心数') {
-                                secondCell.textContent = systemInfo.cpu_count || '加载失败';
-                            } else if (label === '总内存' && systemInfo.memory_total) {
-                                const memoryGB = (systemInfo.memory_total / (1024*1024*1024)).toFixed(2);
-                                secondCell.textContent = memoryGB + ' GB';
-                            } else if (label === '总磁盘空间' && systemInfo.disk_total) {
-                                const diskGB = (systemInfo.disk_total / (1024*1024*1024)).toFixed(2);
-                                secondCell.textContent = diskGB + ' GB';
-                            } else if (label === '系统时间') {
-                                secondCell.textContent = systemInfo.time || '加载失败';
-                            }
+                    console.log('系统信息API返回数据:', data);
+                    
+                    if (!data.success) {
+                        throw new Error(data.error || '获取系统信息失败');
+                    }
+                    
+                    const info = data.data;
+                    console.log('处理系统信息:', info);
+                    
+                    // 更新基本信息
+                    document.getElementById('hostname').textContent = info.hostname || '未知';
+                    document.getElementById('platform').textContent = info.os || info.platform || '未知';
+                    document.getElementById('python_version').textContent = info.python || '未知';
+                    document.getElementById('cpu_count').textContent = info.cpu_count ? (info.cpu_count + ' 核') : '未知';
+                })
+                .catch(error => {
+                    console.error('获取系统信息失败:', error);
+                    // 在错误时显示未知
+                    const fields = ['hostname', 'platform', 'python_version', 'cpu_count'];
+                    fields.forEach(field => {
+                        const element = document.getElementById(field);
+                        if (element) {
+                            element.textContent = '未知';
                         }
-                    } else {
-                        console.error('获取系统信息失败:', data.error || '未知错误');
+                    });
+                });
+
+            // 获取系统状态
+            fetch('/api/system/status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('系统状态API返回数据:', data);
+                    
+                    if (!data.success) {
+                        throw new Error(data.error || '获取系统状态失败');
+                    }
+                    
+                    const status = data.data;
+                    console.log('处理系统状态:', status);
+                    
+                    // 更新内存信息
+                    if (status.memory_total && status.memory_used) {
+                        const memoryAvailable = status.memory_total - status.memory_used;
+                        document.getElementById('memory_total').textContent = formatBytes(status.memory_total);
+                        document.getElementById('memory_available').textContent = formatBytes(memoryAvailable);
+                        
+                        // 更新内存进度条
+                        const memoryPercent = status.memory_percent || ((status.memory_used / status.memory_total) * 100).toFixed(1);
+                        document.getElementById('memory-value').textContent = 
+                            `${formatBytes(status.memory_used)} / ${formatBytes(status.memory_total)}`;
+                        const memoryBar = document.querySelector('.memory-progress');
+                        if (memoryBar) {
+                            memoryBar.style.width = memoryPercent + '%';
+                            memoryBar.setAttribute('data-value', memoryPercent);
+                        }
+                    }
+                    
+                    // 更新CPU信息
+                    if (status.cpu_percent !== undefined) {
+                        document.getElementById('cpu-value').textContent = status.cpu_percent + '%';
+                        const cpuBar = document.querySelector('.cpu-progress');
+                        if (cpuBar) {
+                            cpuBar.style.width = status.cpu_percent + '%';
+                            cpuBar.setAttribute('data-value', status.cpu_percent);
+                        }
+                    }
+                    
+                    // 更新磁盘信息
+                    if (status.disk_total && status.disk_used) {
+                        const diskFree = status.disk_total - status.disk_used;
+                        document.getElementById('disk_total').textContent = formatBytes(status.disk_total);
+                        document.getElementById('disk_free').textContent = formatBytes(diskFree);
+                        
+                        // 更新磁盘进度条
+                        const diskPercent = status.disk_percent || ((status.disk_used / status.disk_total) * 100).toFixed(1);
+                        document.getElementById('disk-value').textContent = diskPercent + '%';
+                        const diskBar = document.querySelector('.disk-progress');
+                        if (diskBar) {
+                            diskBar.style.width = diskPercent + '%';
+                            diskBar.setAttribute('data-value', diskPercent);
+                        }
+                    }
+                    
+                    // 更新运行时间信息
+                    if (status.uptime) {
+                        document.getElementById('uptime-value').textContent = status.uptime;
+                    }
+                    if (status.start_time) {
+                        document.getElementById('start-time').textContent = '启动于 ' + status.start_time;
+                    }
+                    
+                    // 更新时间
+                    document.getElementById('update_time').textContent = new Date().toLocaleString();
+                    
+                    // 隐藏错误信息
+                    const errorDiv = document.getElementById('error_message');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'none';
                     }
                 })
                 .catch(error => {
-                    console.error('获取系统信息请求失败:', error);
+                    console.error('获取系统状态失败:', error);
+                    const errorDiv = document.getElementById('error_message');
+                    if (errorDiv) {
+                        errorDiv.textContent = '获取系统状态失败: ' + error.message;
+                        errorDiv.style.display = 'block';
+                    }
+                    
+                    // 在错误时显示未知
+                    const fields = ['memory_total', 'memory_available', 'disk_total', 'disk_free', 
+                                  'update_time'];
+                    fields.forEach(field => {
+                        const element = document.getElementById(field);
+                        if (element) {
+                            element.textContent = '未知';
+                        }
+                    });
                 });
         }
 
@@ -765,6 +845,7 @@
                     if (!response.success) {
                         throw new Error(response.error || '获取系统信息失败');
                     }
+                    console.log('系统信息:', response.data); // 添加调试日志
                     const data = response.data;
                     document.getElementById('hostname').textContent = data.hostname || '未知';
                     document.getElementById('platform').textContent = data.platform || '未知';

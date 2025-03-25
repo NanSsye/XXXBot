@@ -1,0 +1,42 @@
+[OpenAI]
+enable = true          # 是否启用插件
+default-model = "gpt-3.5"  # 默认使用的模型
+commands = ["openai", "gpt"]
+chatroom_enable = false  # 是否启用聊天室功能：
+                        # true - 用户@机器人后会自动进入聊天室，之后无需@即可聊天
+                        # false - 每次对话都需要@或使用触发词，不会进入持续聊天模式
+command-tip = """-----XYBot-----
+💬OpenAI聊天指令：
+1. 切换模型（将会一直保持到下次切换）：
+   - @gpt3.5 切换：切换到GPT-3.5模型
+   - @gpt4 切换：切换到GPT-4模型
+2. 临时使用其他模型：
+   - gpt3.5 消息内容：临时使用GPT-3.5模型
+   - gpt4 消息内容：临时使用GPT-4模型"""
+admin_ignore = true            # 管理员是否免积分，设为true则管理员不消耗积分使用AI
+whitelist_ignore = true        # 白名单用户是否免积分，设为true则白名单用户不消耗积分
+http-proxy = ""                # HTTP代理配置，格式为"http://代理地址:端口"，不需要则留空
+voice_reply_all = false        # 是否总是使用语音回复，设为true则所有回复都转为语音消息
+robot-names = ["GPTBot", "智能助手", "AI助手"]
+remember_user_model = true     # 是否记住用户上次使用的模型
+
+[OpenAI.models]
+# GPT-3.5模型配置
+[OpenAI.models."gpt-3.5"]
+api-key = "sk-your-openai-api-key"
+base-url = "https://api.openai.com/v1" # OpenAI官方API
+# 如果使用自定义API或代理API，可以修改为自己的地址
+# base-url = "https://api.yourproxy.com/v1"
+model = "gpt-3.5-turbo" # 实际使用的模型名称
+trigger-words = ["gpt3.5", "GPT3.5", "gpt-3.5"]
+wakeup-words = ["GPT3.5", "gpt3.5"]
+price = 1 # 使用一次消耗的积分数
+
+# GPT-4模型配置
+[OpenAI.models."gpt-4"]
+api-key = "sk-your-openai-api-key"
+base-url = "https://api.openai.com/v1"
+model = "gpt-4-turbo" # 实际使用的模型名称
+trigger-words = ["gpt4", "GPT4", "gpt-4"]
+wakeup-words = ["GPT4", "gpt4"]
+price = 5 # 由于GPT-4更贵，可以设置更高的积分消耗 

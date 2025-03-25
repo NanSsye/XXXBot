@@ -1,12 +1,8 @@
 # XXXBot 机器人项目
 
-特别感谢 HenryXiaoYang 提供的[XYBotV2](https://github.com/XYBotV2)开源项目，本项目是基于[XYBotV2](https://github.com/XYBotV2)的二改项目。
-
 ## 项目概述
 
 XXXBot 是一个基于微信的智能机器人系统，通过整合多种 API 和功能，提供了丰富的交互体验。本系统包含管理后台界面，支持插件扩展，具备联系人管理、文件管理、系统状态监控等功能，同时与人工智能服务集成，提供智能对话能力。
-
-<img src="https://github.com/user-attachments/assets/08b34778-955d-4515-ad1d-e3035b4b7e91" width="400" height="600">
 
 ## 主要特性
 
@@ -42,6 +38,7 @@ XXXBot 是一个基于微信的智能机器人系统，通过整合多种 API �
 ### 系统要求
 
 - Python 3.11+
+- 微信客户端（需配合特定接口使用）
 - FFmpeg（用于语音处理）
 
 ### 安装步骤
@@ -195,7 +192,8 @@ class YourPlugin(PluginBase):
 
 3. **无法连接微信**
 
-   - 检查网络连接
+   - 确认微信客户端和接口版本是否匹配
+   - 检查网络连接和端口设置
 
 4. **Dify API 错误**
 

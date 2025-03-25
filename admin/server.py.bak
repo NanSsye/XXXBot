@@ -111,10 +111,6 @@ def get_system_info():
     """获取系统信息"""
     try:
         # 获取基本系统信息
-        import platform
-        import psutil
-        import socket
-        
         hostname = socket.gethostname()
         platform_info = platform.platform()
         python_version = platform.python_version()
@@ -122,98 +118,50 @@ def get_system_info():
         # 获取CPU信息
         try:
             cpu_count = psutil.cpu_count(logical=True)
-            cpu_percent = psutil.cpu_percent(interval=0.1)
             if cpu_count is None:
                 cpu_count = psutil.cpu_count(logical=False)
         except Exception as e:
             logger.error(f"获取CPU信息失败: {str(e)}")
             cpu_count = 0
-            cpu_percent = 0
         
         # 获取内存信息
         try:
             memory = psutil.virtual_memory()
             memory_total = memory.total
             memory_available = memory.available
-            memory_used = memory.used
-            memory_percent = memory.percent
         except Exception as e:
             logger.error(f"获取内存信息失败: {str(e)}")
             memory_total = 0
             memory_available = 0
-            memory_used = 0
-            memory_percent = 0
         
         # 获取磁盘信息
         try:
             disk = psutil.disk_usage('/')
             disk_total = disk.total
             disk_free = disk.free
-            disk_used = disk.used
-            disk_percent = disk.percent
         except Exception as e:
             logger.error(f"获取磁盘信息失败: {str(e)}")
             disk_total = 0
             disk_free = 0
-            disk_used = 0
-            disk_percent = 0
         
-        # 获取系统启动时间
-        try:
-            boot_time = datetime.fromtimestamp(psutil.boot_time())
-            uptime = datetime.now() - boot_time
-            uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
-        except Exception as e:
-            logger.error(f"获取系统启动时间失败: {str(e)}")
-            boot_time = datetime.now()
-            uptime_str = "未知"
-
-        return {
+        info = {
             "hostname": hostname,
             "platform": platform_info,
             "python_version": python_version,
             "cpu_count": cpu_count,
-            "cpu_percent": cpu_percent,
             "memory_total": memory_total,
             "memory_available": memory_available,
-            "memory_used": memory_used,
-            "memory_percent": memory_percent,
             "disk_total": disk_total,
             "disk_free": disk_free,
-            "disk_used": disk_used,
-            "disk_percent": disk_percent,
-            "boot_time": boot_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "uptime": uptime_str,
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "os": platform.system(),
-            "version": platform.version(),
-            "processor": platform.processor()
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
+        
+        logger.debug(f"系统信息获取成功: {info}")
+        return info
+        
     except Exception as e:
         logger.error(f"获取系统信息失败: {str(e)}")
-        # 返回基本信息
-        import platform
-        return {
-            "hostname": "unknown",
-            "platform": "unknown",
-            "python_version": platform.python_version(),
-            "cpu_count": 0,
-            "cpu_percent": 0,
-            "memory_total": 0,
-            "memory_available": 0,
-            "memory_used": 0,
-            "memory_percent": 0,
-            "disk_total": 0,
-            "disk_free": 0,
-            "disk_used": 0,
-            "disk_percent": 0,
-            "boot_time": "unknown",
-            "uptime": "unknown",
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "os": platform.system(),
-            "version": platform.version(),
-            "processor": platform.processor()
-        }
+        raise
 
 def get_system_status():
     """获取系统运行状态信息"""
@@ -829,32 +777,10 @@ def setup_routes():
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
             
-        try:
-            # 获取系统信息
-            info = get_system_info()
-            return {
-                "success": True,
-                "data": info,
-                "error": None
-            }
-        except Exception as e:
-            logger.error(f"获取系统信息API失败: {str(e)}")
-            # 返回默认值但标记为成功，避免前端显示错误
-            return JSONResponse(content={
-                "success": True,  # 改为True，即使获取失败也不显示错误
-                "data": {
-                    "hostname": socket.gethostname() if hasattr(socket, 'gethostname') else "unknown",
-                    "platform": platform.platform() if hasattr(platform, 'platform') else "unknown",
-                    "python_version": platform.python_version() if hasattr(platform, 'python_version') else "unknown",
-                    "cpu_count": 0,
-                    "memory_total": 0,
-                    "memory_available": 0,
-                    "disk_total": 0,
-                    "disk_free": 0,
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                },
-                "error": str(e)
-            })
+        return {
+            "success": True,
+            "data": get_system_info()
+        }
     
     # API: 机器人状态 (需要认证)
     @app.get("/api/bot/status", response_class=JSONResponse)
@@ -4003,34 +3929,33 @@ def get_bot(wxid):
             logger.error(f"安装插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
 
-    # 注释掉重复的API端点定义
-    #@app.get('/api/system/info')
-    #async def system_info_api(request: Request):
-    #    """系统信息API"""
-    #    try:
-    #        info = get_system_info()
-    #        return JSONResponse(content={
-    #            "success": True,
-    #            "data": info,
-    #            "error": None
-    #        })
-    #    except Exception as e:
-    #        logger.error(f"获取系统信息API失败: {str(e)}")
-    #        return JSONResponse(content={
-    #            "success": False,
-    #            "data": {
-    #                "hostname": "unknown",
-    #                "platform": "unknown",
-    #                "python_version": "unknown",
-    #                "cpu_count": 0,
-    #                "memory_total": 0,
-    #                "memory_available": 0,
-    #                "disk_total": 0,
-    #                "disk_free": 0,
-    #                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    #            },
-    #            "error": str(e)
-    #        })
+    @app.get('/api/system/info')
+    async def system_info_api(request: Request):
+        """系统信息API"""
+        try:
+            info = get_system_info()
+            return JSONResponse(content={
+                "success": True,
+                "data": info,
+                "error": None
+            })
+        except Exception as e:
+            logger.error(f"获取系统信息API失败: {str(e)}")
+            return JSONResponse(content={
+                "success": False,
+                "data": {
+                    "hostname": "unknown",
+                    "platform": "unknown",
+                    "python_version": "unknown",
+                    "cpu_count": 0,
+                    "memory_total": 0,
+                    "memory_available": 0,
+                    "disk_total": 0,
+                    "disk_free": 0,
+                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                },
+                "error": str(e)
+            })
 
     def check_auth(request: Request):
         """检查用户认证状态"""
