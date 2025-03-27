@@ -16,6 +16,12 @@ let isRecovering = false;
 // 添加加载状态标志
 let isLoading = false;
 
+// 定义可编辑的文本文件扩展名
+const textFileExtensions = [
+    'txt', 'md', 'markdown', 'html', 'htm', 'css', 'js', 'json', 'xml', 'yaml', 'yml',
+    'py', 'c', 'cpp', 'h', 'java', 'php', 'rb', 'sh', 'bat', 'ps1', 'ini', 'conf', 'cfg'
+];
+
 // 全局超时计时器
 let globalTimeoutTimer = null;
 
@@ -46,28 +52,45 @@ const elements = {
     newFolderNameInput: document.getElementById('new-folder-name'),
     btnCreateFolder: document.getElementById('btn-create-folder'),
     btnConfirmDelete: document.getElementById('btn-confirm-delete'),
+    deleteConfirmModal: document.getElementById('delete-confirm-modal'),
     deleteItemName: document.getElementById('delete-item-name'),
     deleteWarningMessage: document.getElementById('delete-warning-message'),
+    renameModal: document.getElementById('rename-modal'),
     renameItemName: document.getElementById('rename-item-name'),
     btnConfirmRename: document.getElementById('btn-confirm-rename'),
-    lineNumbers: document.getElementById('line-numbers'),
+    uploadFileModal: document.getElementById('upload-file-modal'),
+    uploadPath: document.getElementById('upload-path'),
+    uploadFiles: document.getElementById('upload-files'),
+    uploadProgressContainer: document.getElementById('upload-progress-container'),
+    uploadProgressBar: document.getElementById('upload-progress-bar'),
+    uploadStatus: document.getElementById('upload-status'),
+    btnStartUpload: document.getElementById('btn-start-upload'),
+    btnUploadFile: document.getElementById('btn-upload-file'),
+    uploadTypeFiles: document.getElementById('upload-type-files'),
+    uploadTypeFolder: document.getElementById('upload-type-folder'),
+    uploadTypeZip: document.getElementById('upload-type-zip'),
+    fileSelector: document.getElementById('file-selector'),
+    folderSelector: document.getElementById('folder-selector'),
+    zipSelector: document.getElementById('zip-selector'),
+    uploadFolder: document.getElementById('upload-folder'),
+    uploadZip: document.getElementById('upload-zip'),
+    autoExtract: document.getElementById('auto-extract'),
+    extractOption: document.getElementById('extract-option'),
+    extractFileModal: document.getElementById('extract-modal'),
+    extractFilePath: document.getElementById('extract-file-path'),
+    extractDestination: document.getElementById('extract-destination'),
+    extractOverwrite: document.getElementById('extract-overwrite'),
+    extractProgressContainer: document.getElementById('extract-progress-container'),
+    extractProgressBar: document.getElementById('extract-progress-bar'),
+    extractStatus: document.getElementById('extract-status'),
+    btnStartExtract: document.getElementById('btn-start-extract'),
     loadingFiles: document.getElementById('loading-files'),
     emptyFolderMessage: document.getElementById('empty-folder-message'),
     errorMessage: document.getElementById('error-message'),
     errorDetails: document.getElementById('error-details'),
-    btnRefreshAddress: document.getElementById('btn-refresh-address'),
-    newFileModal: document.getElementById('new-file-modal'),
-    newFolderModal: document.getElementById('new-folder-modal'),
-    deleteConfirmModal: document.getElementById('delete-confirm-modal'),
-    renameModal: document.getElementById('rename-modal'),
-    uploadFileModal: document.getElementById('upload-file-modal'),
-    uploadPath: document.getElementById('upload-path'),
-    uploadFiles: document.getElementById('upload-files'),
-    btnStartUpload: document.getElementById('btn-start-upload'),
-    uploadProgressContainer: document.getElementById('upload-progress-container'),
-    uploadProgressBar: document.getElementById('upload-progress-bar'),
-    uploadStatus: document.getElementById('upload-status'),
-    btnUploadFile: document.getElementById('btn-upload-file')
+    btnRetry: document.getElementById('btn-retry'),
+    lineNumbers: document.getElementById('line-numbers'),
+    btnRefreshAddress: document.getElementById('btn-refresh-address')
 };
 
 // 模态框实例
@@ -76,7 +99,8 @@ const modals = {
     newFolder: elements.newFolderModal ? new bootstrap.Modal(elements.newFolderModal) : null,
     deleteConfirm: elements.deleteConfirmModal ? new bootstrap.Modal(elements.deleteConfirmModal) : null,
     rename: elements.renameModal ? new bootstrap.Modal(elements.renameModal) : null,
-    uploadFile: elements.uploadFileModal ? new bootstrap.Modal(elements.uploadFileModal) : null
+    uploadFile: elements.uploadFileModal ? new bootstrap.Modal(elements.uploadFileModal) : null,
+    extractFile: elements.extractFileModal ? new bootstrap.Modal(elements.extractFileModal) : null
 };
 
 // 页面上下文和状态管理
@@ -142,8 +166,14 @@ function init() {
 // 初始化模态框
 function initModals() {
     try {
-        // 使用延迟初始化，避免在DOM未完全加载时初始化
-        setTimeout(() => {
+        console.log('初始化模态框');
+        
+        // 使用window中存储的解压模态框实例
+        if (window.extractModalInstance) {
+            console.log('使用全局解压模态框实例');
+            modals.extractFile = window.extractModalInstance;
+        }
+        
             // 新建文件模态框
             if (elements.newFileModal) {
                 try {
@@ -183,9 +213,8 @@ function initModals() {
                     console.error('初始化重命名模态框失败:', e);
                 }
             }
-        }, 500);
     } catch (e) {
-        console.error('模态框初始化过程中发生异常:', e);
+        console.error('模态框初始化失败:', e);
     }
 }
 
@@ -330,6 +359,35 @@ function registerEventHandlers() {
     
     if (elements.btnStartUpload) {
         elements.btnStartUpload.addEventListener('click', uploadFiles);
+    }
+    
+    // 添加上传类型切换处理
+    if (elements.uploadTypeFiles && elements.uploadTypeFolder && elements.uploadTypeZip) {
+        // 文件类型切换
+        elements.uploadTypeFiles.addEventListener('change', function() {
+            if (this.checked) {
+                updateUploadUI();
+            }
+        });
+        
+        // 文件夹类型切换
+        elements.uploadTypeFolder.addEventListener('change', function() {
+            if (this.checked) {
+                updateUploadUI();
+            }
+        });
+        
+        // 压缩包类型切换
+        elements.uploadTypeZip.addEventListener('change', function() {
+            if (this.checked) {
+                updateUploadUI();
+            }
+        });
+    }
+    
+    // 添加解压文件按钮事件处理
+    if (elements.btnStartExtract) {
+        elements.btnStartExtract.addEventListener('click', extractArchive);
     }
 }
 
@@ -549,6 +607,12 @@ function displayFiles(files) {
                 case 'json': iconClass = 'bi-filetype-json file-icon-json'; break;
                 case 'md': iconClass = 'bi-filetype-md file-icon-md'; break;
                 case 'txt': iconClass = 'bi-filetype-txt file-icon-txt'; break;
+                case 'zip': 
+                case 'rar': 
+                case '7z': 
+                case 'tar': 
+                case 'gz': 
+                case 'tgz': iconClass = 'bi-file-earmark-zip file-icon-zip'; break;
                 default: iconClass = 'bi-file-earmark file-icon-txt';
             }
         }
@@ -584,6 +648,13 @@ function displayFiles(files) {
             if (file.type === 'directory') {
                 loadFiles(file.path);
             }
+        });
+        
+        // 添加右键菜单事件
+        itemEl.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            selectItem(itemEl);
+            showContextMenu(e, itemEl);
         });
         
         // 编辑按钮
@@ -1721,26 +1792,347 @@ function setupEditorUI() {
     }
 }
 
-// 添加文件上传函数
+// 提取完整的extractArchive函数
+function extractArchive() {
+    console.log('开始执行extractArchive函数');
+    
+    // 直接获取DOM元素，避免引用问题
+    const extractFilePath = document.getElementById('extract-file-path');
+    const extractDestination = document.getElementById('extract-destination');
+    const extractOverwrite = document.getElementById('extract-overwrite');
+    const extractProgressContainer = document.getElementById('extract-progress-container');
+    const extractStatus = document.getElementById('extract-status');
+    const btnStartExtract = document.getElementById('btn-start-extract');
+    
+    console.log('DOM元素直接获取状态:', {
+        extractFilePath: extractFilePath,
+        extractDestination: extractDestination,
+        extractOverwrite: extractOverwrite
+    });
+    
+    // 尝试从sessionStorage获取路径作为备选
+    let filePath = extractFilePath ? extractFilePath.value : null;
+    if (!filePath && sessionStorage.getItem('extractFilePath')) {
+        filePath = sessionStorage.getItem('extractFilePath');
+        console.log('从sessionStorage获取文件路径:', filePath);
+        
+        // 如果input元素存在但为空，设置从sessionStorage获取的值
+        if (extractFilePath && !extractFilePath.value) {
+            extractFilePath.value = filePath;
+            console.log('已设置从sessionStorage获取的文件路径到input:', filePath);
+        }
+    }
+    
+    console.log('解压函数获取到的文件路径:', filePath);
+    
+    if (!filePath) {
+        console.error('未指定压缩文件路径');
+        showToast('解压失败', '未指定压缩文件', 'error');
+        return;
+    }
+    
+    let destination = extractDestination ? extractDestination.value || '' : '';
+    const overwrite = extractOverwrite ? extractOverwrite.checked : false;
+    console.log('目标路径:', destination, '覆盖文件:', overwrite);
+    
+    // 如果不是以当前路径开始，添加当前路径前缀
+    if (destination && !destination.startsWith('/')) {
+        destination = currentPath + (currentPath.endsWith('/') ? '' : '/') + destination;
+    } else if (!destination) {
+        destination = currentPath;
+    }
+    
+    console.log('最终解压参数:', {
+        文件路径: filePath,
+        目标路径: destination,
+        覆盖已有文件: overwrite
+    });
+    
+    // 禁用按钮防止重复提交
+    if (btnStartExtract) btnStartExtract.disabled = true;
+    
+    // 显示进度容器
+    if (extractProgressContainer) {
+        extractProgressContainer.style.display = 'block';
+    }
+    
+    // 显示状态信息
+    if (extractStatus) {
+        extractStatus.textContent = '正在解压文件...';
+        extractStatus.style.display = 'block';
+    }
+    
+    // 创建并发送请求
+    const formData = new FormData();
+    formData.append('file_path', filePath);
+    formData.append('destination', destination);
+    formData.append('overwrite', overwrite);
+    
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/files/extract', true);
+    
+    // 设置进度处理
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            const progressBar = document.getElementById('extract-progress-bar');
+            if (progressBar) {
+                progressBar.style.width = percent + '%';
+                progressBar.setAttribute('aria-valuenow', percent);
+            }
+        }
+    };
+    
+    // 设置完成处理
+    xhr.onload = function() {
+        console.log('解压请求完成，状态:', xhr.status);
+        
+        // 启用按钮
+        if (btnStartExtract) btnStartExtract.disabled = false;
+        
+        if (xhr.status === 200) {
+            try {
+                const response = JSON.parse(xhr.responseText);
+                console.log('解压响应:', response);
+                
+                if (response.success) {
+                    // 解压成功
+                    if (extractStatus) {
+                        extractStatus.textContent = '解压完成!';
+                        extractStatus.className = 'alert alert-success';
+                    }
+                    
+                    showToast('解压成功', '文件已解压到 ' + destination, 'success');
+                    
+                    // 3秒后关闭模态框并刷新文件列表
+                    setTimeout(function() {
+                        if (window.extractModalInstance) {
+                            window.extractModalInstance.hide();
+                        } else {
+                            const extractModal = document.getElementById('extractModal');
+                            if (extractModal) {
+                                const modal = bootstrap.Modal.getInstance(extractModal);
+                                if (modal) modal.hide();
+                            }
+                        }
+                        loadFiles(currentPath);
+                    }, 3000);
+                } else {
+                    // 解压失败
+                    if (extractStatus) {
+                        extractStatus.textContent = '解压失败: ' + (response.message || response.error || '未知错误');
+                        extractStatus.className = 'alert alert-danger';
+                    }
+                    
+                    showToast('解压失败', response.message || response.error || '未知错误', 'error');
+                }
+            } catch (e) {
+                console.error('解析响应出错:', e);
+                if (extractStatus) {
+                    extractStatus.textContent = '解压过程中发生错误: ' + e.message;
+                    extractStatus.className = 'alert alert-danger';
+                }
+                
+                showToast('解压失败', '解析响应出错: ' + e.message, 'error');
+            }
+        } else {
+            // HTTP错误
+            console.error('HTTP错误:', xhr.status);
+            if (extractStatus) {
+                extractStatus.textContent = '服务器错误: ' + xhr.status;
+                extractStatus.className = 'alert alert-danger';
+            }
+            
+            showToast('解压失败', '服务器错误: ' + xhr.status, 'error');
+        }
+    };
+    
+    // 设置错误处理
+    xhr.onerror = function() {
+        console.error('网络错误');
+        
+        // 启用按钮
+        if (btnStartExtract) btnStartExtract.disabled = false;
+        
+        if (extractStatus) {
+            extractStatus.textContent = '网络错误，请重试';
+            extractStatus.className = 'alert alert-danger';
+        }
+        
+        showToast('解压失败', '网络错误，请重试', 'error');
+    };
+    
+    // 设置取消处理
+    xhr.onabort = function() {
+        console.log('解压请求已取消');
+        
+        // 启用按钮
+        if (btnStartExtract) btnStartExtract.disabled = false;
+        
+        if (extractStatus) {
+            extractStatus.textContent = '解压已取消';
+            extractStatus.className = 'alert alert-warning';
+        }
+    };
+    
+    // 发送请求
+    try {
+        xhr.send(formData);
+        console.log('解压请求已发送');
+    } catch (e) {
+        console.error('发送解压请求失败:', e);
+        
+        // 启用按钮
+        if (btnStartExtract) btnStartExtract.disabled = false;
+        
+        if (extractStatus) {
+            extractStatus.textContent = '发送请求失败: ' + e.message;
+            extractStatus.className = 'alert alert-danger';
+        }
+        
+        showToast('解压失败', '发送请求失败: ' + e.message, 'error');
+    }
+}
+
+// 重置解压表单状态
+function resetExtractForm(resetFilePath = true) {
+    console.log('重置解压表单，重置文件路径:', resetFilePath);
+    
+    // 获取DOM元素
+    const extractProgressContainer = document.getElementById('extract-progress-container');
+    const extractStatus = document.getElementById('extract-status');
+    const extractFilePath = document.getElementById('extract-file-path');
+    
+    // 隐藏进度条
+    if (extractProgressContainer) {
+        extractProgressContainer.style.display = 'none';
+    }
+    
+    // 清除状态消息
+    if (extractStatus) {
+        extractStatus.textContent = '';
+    }
+    
+    // 根据参数决定是否清除文件路径
+    if (resetFilePath && extractFilePath) {
+        extractFilePath.value = '';
+        console.log('已清除文件路径');
+    }
+}
+
+// 显示解压对话框
+function showExtractDialog(filePath) {
+    console.log('开始显示解压对话框，文件路径:', filePath);
+    
+    // 从sessionStorage获取路径，以防传递中丢失
+    if (!filePath && sessionStorage.getItem('extractFilePath')) {
+        filePath = sessionStorage.getItem('extractFilePath');
+        console.log('从sessionStorage获取解压文件路径:', filePath);
+    }
+    
+    if (!filePath) {
+        console.error('解压对话框未指定文件路径');
+        showToast('解压错误', '未指定文件路径', 'error');
+        return;
+    }
+
+    // 获取DOM元素
+    const extractFilePathInput = document.getElementById('extract-file-path');
+    console.log('解压文件路径Input元素:', extractFilePathInput);
+    
+    // 设置文件路径到隐藏的input中
+    if (extractFilePathInput) {
+        extractFilePathInput.value = filePath;
+        console.log('已设置解压文件路径:', filePath);
+    } else {
+        console.error('找不到extract-file-path元素');
+    }
+    
+    // 设置默认解压目标为当前目录
+    const extractDestination = document.getElementById('extract-destination');
+    if (extractDestination) {
+        // 默认解压到当前目录
+        extractDestination.value = '';
+        console.log('设置默认解压目标为当前目录');
+    }
+    
+    // 重置表单状态，但不清除文件路径
+    resetExtractForm(false);
+    
+    // 显示模态窗口
+    try {
+        const extractModal = document.getElementById('extractModal');
+        console.log('解压模态窗口元素:', extractModal);
+        
+        if (window.extractModalInstance) {
+            console.log('使用Bootstrap Modal实例显示窗口');
+            window.extractModalInstance.show();
+        } else if (extractModal) {
+            console.log('尝试初始化并显示Modal');
+            const modal = new bootstrap.Modal(extractModal);
+            window.extractModalInstance = modal;
+            modal.show();
+        } else {
+            console.error('找不到extractModal元素');
+        }
+    } catch (error) {
+        console.error('显示解压模态窗口时出错:', error);
+        // 尝试使用jQuery作为备选方案
+        try {
+            $('#extractModal').modal('show');
+            console.log('使用jQuery显示Modal');
+        } catch (e) {
+            console.error('jQuery模态窗口显示失败:', e);
+            showToast('错误', '无法显示解压对话框', 'error');
+        }
+    }
+}
+
+// 修改上传文件函数
 function uploadFiles() {
-    if (!elements.uploadFiles || !elements.uploadFiles.files.length) {
+    // 确定当前选择的上传类型
+    let uploadType = "files";
+    let uploadFiles = null;
+    
+    if (elements.uploadTypeFiles && elements.uploadTypeFiles.checked) {
+        uploadType = "files";
+        uploadFiles = elements.uploadFiles;
+    } else if (elements.uploadTypeFolder && elements.uploadTypeFolder.checked) {
+        uploadType = "folder";
+        uploadFiles = elements.uploadFolder;
+    } else if (elements.uploadTypeZip && elements.uploadTypeZip.checked) {
+        uploadType = "zip";
+        uploadFiles = elements.uploadZip;
+    } else {
+        // 默认使用文件上传
+        uploadFiles = elements.uploadFiles;
+    }
+    
+    if (!uploadFiles || !uploadFiles.files.length) {
         showToast('上传失败', '请选择要上传的文件', 'error');
         return;
     }
     
     const formData = new FormData();
     formData.append('path', currentPath);
+    formData.append('upload_type', uploadType);
+    
+    // 添加自动解压选项（如果选中）
+    if (uploadType === "zip" && elements.autoExtract && elements.autoExtract.checked) {
+        formData.append('auto_extract', 'true');
+    }
     
     // 添加所有选择的文件
-    for (let i = 0; i < elements.uploadFiles.files.length; i++) {
-        formData.append('files', elements.uploadFiles.files[i]);
+    for (let i = 0; i < uploadFiles.files.length; i++) {
+        formData.append('files', uploadFiles.files[i]);
     }
     
     // 显示更详细的信息
     console.log('准备上传文件:', {
         路径: currentPath,
-        文件数量: elements.uploadFiles.files.length,
-        文件列表: Array.from(elements.uploadFiles.files).map(f => f.name)
+        类型: uploadType,
+        文件数量: uploadFiles.files.length,
+        文件列表: Array.from(uploadFiles.files).map(f => f.name)
     });
     
     // 显示进度条
@@ -2061,3 +2453,299 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 500); // 延迟500毫秒确保DOM完全加载
 }); 
+
+// 创建文件/文件夹的上下文菜单
+function createContextMenu(fileItem) {
+    // 记录正在创建上下文菜单与文件项
+    const fileItemData = fileItem.dataset;
+    console.log('创建上下文菜单:', fileItemData);
+    console.log('文件名:', fileItemData.name);
+    console.log('文件路径:', fileItemData.path);
+    console.log('文件类型:', fileItemData.type);
+    
+    // 创建菜单
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.id = 'context-menu';
+    
+    // 默认选项
+    const menuItems = [
+        { text: '下载', action: () => downloadFile(fileItemData.path) },
+        { text: '重命名', action: () => showRenameDialog(fileItemData.path) },
+        { text: '删除', action: () => showDeleteConfirmation(fileItemData.path) },
+    ];
+
+    // 检查是否是可编辑的文本文件
+    if (fileItemData.type === 'file' && isTextFile(fileItemData.name)) {
+        menuItems.unshift({ text: '编辑', action: () => editTextFile(fileItemData.path) });
+    }
+    
+    // 解压选项 - 检查是否是压缩文件
+    const archiveExtensions = ['.zip', '.tar', '.gz', '.7z', '.rar'];
+    const isArchive = archiveExtensions.some(ext => fileItemData.name.toLowerCase().endsWith(ext));
+    
+    if (fileItemData.type === 'file' && isArchive) {
+        menuItems.push({ 
+            text: '解压', 
+            action: () => {
+                // 保存文件路径到sessionStorage，避免传递问题
+                console.log('准备解压文件:', fileItemData.path);
+                sessionStorage.setItem('extractFilePath', fileItemData.path);
+                showExtractDialog(fileItemData.path);
+            } 
+        });
+    }
+
+    // ... 其余菜单项代码保持不变 ...
+    // 将菜单项加入菜单
+    menuItems.forEach(item => {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'context-menu-item';
+        menuItem.textContent = item.text;
+        menuItem.addEventListener('click', () => {
+            item.action();
+            hideContextMenu();
+        });
+        menu.appendChild(menuItem);
+    });
+
+    return menu;
+}
+
+// 隐藏上下文菜单
+function hideContextMenu() {
+    const contextMenu = document.querySelector('.context-menu.show');
+    if (contextMenu) {
+        contextMenu.classList.remove('show');
+        contextMenu.remove();
+    }
+}
+
+// 显示上下文菜单
+function showContextMenu(e, item) {
+    // 先隐藏已有的上下文菜单
+    hideContextMenu();
+    
+    // 创建新的上下文菜单
+    const contextMenu = createContextMenu(item);
+    
+    // 设置菜单位置并显示
+    contextMenu.style.position = 'absolute';
+    contextMenu.style.left = `${e.pageX}px`;
+    contextMenu.style.top = `${e.pageY}px`;
+    contextMenu.classList.add('show');
+    
+    // 添加到文档
+    document.body.appendChild(contextMenu);
+    
+    // 点击其他地方时隐藏菜单
+    setTimeout(() => {
+        document.addEventListener('click', hideContextMenu, { once: true });
+    }, 0);
+}
+
+// 在文件结尾添加初始化函数，确保上传类型选择器正常工作
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化上传选项
+    initUploadOptions();
+    
+    // 全局标记文件管理器已初始化
+    window.fileManagerInitialized = true;
+    window.dispatchEvent(new Event('fileManagerLoaded'));
+});
+
+// 初始化上传选项函数
+function initUploadOptions() {
+    console.log('初始化上传选项');
+    
+    // 检查是否支持目录上传
+    const testInput = document.createElement('input');
+    testInput.type = 'file';
+    const isDirSupported = 'webkitdirectory' in testInput || 'directory' in testInput;
+    
+    if (!isDirSupported) {
+        console.warn('当前浏览器不支持文件夹上传功能');
+        
+        // 如果存在文件夹上传选项，设置警告信息
+        if (elements.uploadTypeFolder) {
+            elements.uploadTypeFolder.disabled = true;
+            
+            // 添加提示
+            const folderOption = elements.uploadTypeFolder.closest('label');
+            if (folderOption) {
+                folderOption.setAttribute('title', '当前浏览器不支持此功能');
+                folderOption.style.opacity = '0.6';
+                folderOption.style.cursor = 'not-allowed';
+            }
+        }
+    }
+    
+    // 确保上传选项正确初始化
+    updateUploadUI();
+}
+
+// 更新上传UI函数
+function updateUploadUI() {
+    // 确保上传类型对应的选择器正确显示
+    if (elements.uploadTypeFiles && elements.uploadTypeFiles.checked) {
+        if (elements.fileSelector) elements.fileSelector.style.display = 'block';
+        if (elements.folderSelector) elements.folderSelector.style.display = 'none';
+        if (elements.zipSelector) elements.zipSelector.style.display = 'none';
+        if (elements.extractOption) elements.extractOption.style.display = 'none';
+    } else if (elements.uploadTypeFolder && elements.uploadTypeFolder.checked) {
+        if (elements.fileSelector) elements.fileSelector.style.display = 'none';
+        if (elements.folderSelector) elements.folderSelector.style.display = 'block';
+        if (elements.zipSelector) elements.zipSelector.style.display = 'none';
+        if (elements.extractOption) elements.extractOption.style.display = 'none';
+    } else if (elements.uploadTypeZip && elements.uploadTypeZip.checked) {
+        if (elements.fileSelector) elements.fileSelector.style.display = 'none';
+        if (elements.folderSelector) elements.folderSelector.style.display = 'none';
+        if (elements.zipSelector) elements.zipSelector.style.display = 'block';
+        if (elements.extractOption) elements.extractOption.style.display = 'block';
+    }
+    
+    console.log('上传UI已更新');
+}
+
+// 确保在DOMContentLoaded后重新获取DOM元素引用
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('文档加载完成，重新获取DOM元素引用');
+    
+    // 重新获取解压相关元素
+    elements.extractFileModal = document.getElementById('extract-modal');
+    elements.extractFilePath = document.getElementById('extract-file-path');
+    elements.extractDestination = document.getElementById('extract-destination');
+    elements.extractOverwrite = document.getElementById('extract-overwrite');
+    elements.extractProgressContainer = document.getElementById('extract-progress-container');
+    elements.extractProgressBar = document.getElementById('extract-progress-bar');
+    elements.extractStatus = document.getElementById('extract-status');
+    elements.btnStartExtract = document.getElementById('btn-start-extract');
+    
+    console.log('DOM元素引用已更新', {
+        extractFileModal: elements.extractFileModal,
+        extractFilePath: elements.extractFilePath,
+        extractDestination: elements.extractDestination,
+        extractOverwrite: elements.extractOverwrite,
+        btnStartExtract: elements.btnStartExtract
+    });
+    
+    // 重新初始化解压按钮点击事件
+    if (elements.btnStartExtract) {
+        console.log('重新绑定解压按钮事件');
+        elements.btnStartExtract.addEventListener('click', function() {
+            console.log('解压按钮被点击');
+            extractArchive();
+        });
+    }
+});
+
+// 在文件顶部的CSS部分添加
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded事件触发，开始绑定事件和初始化控件');
+    
+    // 添加上下文菜单的样式
+    const style = document.createElement('style');
+    style.textContent = `
+        .context-menu {
+            position: absolute;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            padding: 5px 0;
+            min-width: 150px;
+            z-index: 1000;
+        }
+        
+        .context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .context-menu-item:hover {
+            background-color: #f0f0f0;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // 获取解压相关DOM元素并绑定事件
+    const btnStartExtract = document.getElementById('btn-start-extract');
+    if (btnStartExtract) {
+        console.log('找到解压按钮，绑定点击事件');
+        btnStartExtract.addEventListener('click', extractArchive);
+    } else {
+        console.error('未找到解压按钮元素');
+    }
+    
+    // 绑定其他文件管理按钮事件
+    // ...
+});
+
+// 定义文本文件检查函数
+function isTextFile(filename) {
+    if (!filename) return false;
+    
+    // 获取文件扩展名
+    const extension = filename.split('.').pop().toLowerCase();
+    
+    // 检查是否在可编辑文本文件扩展名列表中
+    return textFileExtensions.includes(extension);
+}
+
+// 辅助函数：下载文件
+function downloadFile(path) {
+    if (!path) return;
+    
+    console.log('下载文件:', path);
+    
+    // 创建一个临时的a标签进行下载
+    const a = document.createElement('a');
+    a.href = `/api/files/download?path=${encodeURIComponent(path)}`;
+    a.download = path.split('/').pop();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    showToast('下载', '正在下载文件...', 'info');
+}
+
+// 辅助函数：编辑文本文件
+function editTextFile(path) {
+    if (!path) return;
+    
+    console.log('编辑文本文件:', path);
+    
+    // 获取文件名
+    const filename = path.split('/').pop();
+    
+    // 调用已有的编辑器函数
+    openEditor(path, filename);
+}
+
+// 辅助函数：显示重命名对话框
+function showRenameDialog(path) {
+    if (!path) return;
+    
+    console.log('显示重命名对话框:', path);
+    
+    // 获取文件名
+    const filename = path.split('/').pop();
+    
+    // 调用已有的重命名函数
+    showRenameModal(path, filename);
+}
+
+// 辅助函数：显示删除确认对话框
+function showDeleteConfirmation(path) {
+    if (!path) return;
+    
+    console.log('显示删除确认对话框:', path);
+    
+    // 获取文件名和类型
+    const filename = path.split('/').pop();
+    const isDirectory = path.endsWith('/');
+    
+    // 调用已有的删除函数
+    showDeleteModal(path, filename, isDirectory);
+}

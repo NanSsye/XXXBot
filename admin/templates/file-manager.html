@@ -366,6 +366,46 @@
             display: inline-block !important;
             visibility: visible !important;
         }
+        
+        /* 上下文菜单样式 */
+        .context-menu {
+            position: absolute;
+            z-index: 1100;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            overflow: hidden;
+            min-width: 180px;
+        }
+        
+        .context-menu .dropdown-menu {
+            display: block;
+            position: static;
+            margin: 0;
+            padding: 0.5rem 0;
+            border: none;
+            box-shadow: none;
+            width: 100%;
+        }
+        
+        .context-menu .dropdown-item {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+        
+        .context-menu .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        /* 解压模态框样式 */
+        #extract-modal .modal-body {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        #extract-progress-bar {
+            transition: width 0.3s;
+        }
     </style>
 </head>
 <body>
@@ -635,10 +675,49 @@
                             <label for="upload-path" class="form-label">上传路径</label>
                             <input type="text" class="form-control" id="upload-path" name="path" readonly>
                         </div>
+                        
+                        <!-- 添加上传类型选择 -->
                         <div class="mb-3">
+                            <label class="form-label">上传类型</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="upload-type" id="upload-type-files" autocomplete="off" checked>
+                                <label class="btn btn-outline-primary" for="upload-type-files">文件</label>
+                                
+                                <input type="radio" class="btn-check" name="upload-type" id="upload-type-folder" autocomplete="off">
+                                <label class="btn btn-outline-primary" for="upload-type-folder">文件夹</label>
+                                
+                                <input type="radio" class="btn-check" name="upload-type" id="upload-type-zip" autocomplete="off">
+                                <label class="btn btn-outline-primary" for="upload-type-zip">压缩包</label>
+                            </div>
+                        </div>
+                        
+                        <!-- 文件上传选择器 -->
+                        <div class="mb-3 upload-selector" id="file-selector">
                             <label for="upload-files" class="form-label">选择文件</label>
                             <input type="file" class="form-control" id="upload-files" name="files" multiple>
+                            <div class="form-text">可以选择多个文件一起上传</div>
                         </div>
+
+                        <!-- 文件夹上传选择器 -->
+                        <div class="mb-3 upload-selector" id="folder-selector" style="display:none">
+                            <label for="upload-folder" class="form-label">选择文件夹</label>
+                            <input type="file" class="form-control" id="upload-folder" name="folder" webkitdirectory directory multiple>
+                            <div class="form-text">选择一个文件夹上传，将保留文件夹结构</div>
+                        </div>
+
+                        <!-- 压缩包上传选择器 -->
+                        <div class="mb-3 upload-selector" id="zip-selector" style="display:none">
+                            <label for="upload-zip" class="form-label">选择压缩包</label>
+                            <input type="file" class="form-control" id="upload-zip" name="zip" accept=".zip,.rar,.7z,.tar,.gz,.tar.gz">
+                            <div class="form-text">支持.zip/.rar/.7z/.tar/.gz等常见压缩格式</div>
+                        </div>
+                        
+                        <!-- 上传后自动解压选项（仅压缩包模式可见） -->
+                        <div class="mb-3 form-check" id="extract-option" style="display:none">
+                            <input type="checkbox" class="form-check-input" id="auto-extract">
+                            <label class="form-check-label" for="auto-extract">上传后自动解压</label>
+                        </div>
+                        
                         <div id="upload-progress-container" class="mb-3 d-none">
                             <label class="form-label">上传进度</label>
                             <div class="progress">
@@ -653,6 +732,46 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                     <button type="button" id="btn-start-upload" class="btn btn-primary">开始上传</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加解压模态框 -->
+    <div class="modal fade" id="extractModal" tabindex="-1" aria-labelledby="extractModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="extractModalLabel">解压文件</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="extract-file-path" class="form-label">文件路径</label>
+                        <input type="text" class="form-control" id="extract-file-path" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="extract-destination" class="form-label">解压到</label>
+                        <input type="text" class="form-control" id="extract-destination" value="">
+                        <div class="form-text">默认解压到当前文件夹，可以指定子文件夹名称</div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="extract-overwrite">
+                        <label class="form-check-label" for="extract-overwrite">覆盖已存在的文件</label>
+                    </div>
+                    <div id="extract-progress-container" class="mb-3" style="display: none;">
+                        <label class="form-label">解压进度</label>
+                        <div class="progress">
+                            <div id="extract-progress-bar" class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                    <div id="extract-status" class="alert alert-info" style="display: none;" role="alert">
+                        准备解压...
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" id="btn-start-extract" class="btn btn-primary">开始解压</button>
                 </div>
             </div>
         </div>
@@ -766,6 +885,21 @@
         
         // 启动进度条
         animateProgressBar();
+        
+        // 确保模态框正确初始化
+        try {
+            const extractModal = document.getElementById('extractModal');
+            if (extractModal) {
+                console.log('找到解压模态框元素，初始化中...');
+                // 初始化解压模态框
+                window.extractModalInstance = new bootstrap.Modal(extractModal);
+                console.log('解压模态框初始化成功');
+            } else {
+                console.error('未找到解压模态框元素!');
+            }
+        } catch (e) {
+            console.error('初始化解压模态框失败:', e);
+        }
     });
     </script>
     

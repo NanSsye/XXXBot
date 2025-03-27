@@ -36,6 +36,34 @@ import httpx
 import requests
 import zipfile
 import io
+# 使用try-except导入rarfile和py7zr
+try:
+    import rarfile
+    # 配置rarfile使用的工具路径，尝试多个可能的位置
+    rarfile.UNRAR_TOOL = "unrar"  # 默认命令
+    # 如果是Windows，尝试常见的安装位置
+    if os.name == 'nt':
+        possible_paths = [
+            r"C:\Program Files\WinRAR\UnRAR.exe",
+            r"C:\Program Files\WinRAR\unrar.exe",
+            r"C:\Program Files (x86)\WinRAR\UnRAR.exe",
+            r"C:\Program Files (x86)\WinRAR\unrar.exe"
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                rarfile.UNRAR_TOOL = path
+                logger.info(f"设置rarfile使用的unrar路径: {path}")
+                break
+    logger.info(f"rarfile配置完成，使用的unrar工具路径: {rarfile.UNRAR_TOOL}")
+except ImportError:
+    rarfile = None
+    logger.warning("rarfile库不可用，无法使用Python处理RAR文件")
+
+try:
+    import py7zr
+except ImportError:
+    py7zr = None
+# import patoolib  # 删除此行，因为patoolib不可用
 
 # 确保当前目录在sys.path中
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -2444,54 +2472,158 @@ def setup_routes():
                     'message': '上传目标路径不是一个目录'
                 })
             
+            # 获取表单数据中的上传类型
+            form = await request.form()
+            upload_type = "files"  # 默认为普通文件上传
+            
+            # 检查是否是文件夹上传请求
+            if "upload_type" in form:
+                upload_type = form["upload_type"]
+                logger.debug(f"上传类型: {upload_type}")
+            
             # 处理上传的文件
             uploaded_files = []
             errors = []
             
+            # 处理文件夹上传
+            is_folder_upload = False
             for file in files:
-                try:
-                    # 构建目标文件路径
-                    target_file_path = full_path / file.filename
-                    
-                    # 检查文件是否已存在
-                    if os.path.exists(target_file_path):
-                        logger.warning(f"文件已存在: {target_file_path}")
+                if '/' in file.filename or '\\' in file.filename:
+                    is_folder_upload = True
+                    break
+            
+            if is_folder_upload or upload_type == "folder":
+                logger.info(f"检测到文件夹上传请求 ({len(files)} 个文件)")
+                
+                # 按文件路径分组文件
+                folder_files = {}
+                for file in files:
+                    # 处理文件路径，统一分隔符
+                    file_path = file.filename.replace('\\', '/')
+                    folder_files[file_path] = file
+                
+                # 创建必要的目录结构并保存文件
+                for file_path, file in folder_files.items():
+                    try:
+                        # 如果是隐藏文件或临时文件，跳过
+                        if file_path.startswith('.') or file_path.endswith('~'):
+                            logger.debug(f"跳过隐藏或临时文件: {file_path}")
+                            continue
+                        
+                        # 获取目录部分
+                        dir_part = os.path.dirname(file_path)
+                        
+                        # 构建目标路径
+                        target_dir = full_path
+                        if dir_part:
+                            target_dir = os.path.join(full_path, dir_part)
+                            # 确保目录存在
+                            os.makedirs(target_dir, exist_ok=True)
+                        
+                        # 构建完整的文件路径
+                        target_file_path = os.path.join(full_path, file_path)
+                        
+                        # 检查文件是否已存在
+                        if os.path.exists(target_file_path):
+                            logger.warning(f"文件已存在: {target_file_path}")
+                            errors.append({
+                                'filename': file_path,
+                                'error': '文件已存在'
+                            })
+                            continue
+                        
+                        # 保存文件
+                        logger.debug(f"保存上传的文件: {target_file_path}")
+                        content = await file.read()
+                        with open(target_file_path, "wb") as f:
+                            f.write(content)
+                        
+                        # 记录成功上传的文件
+                        file_stats = os.stat(target_file_path)
+                        uploaded_files.append({
+                            'filename': file_path,
+                            'size': file_stats.st_size,
+                            'modified': file_stats.st_mtime
+                        })
+                        
+                        logger.info(f"成功上传文件: {file_path} 到 {target_file_path}")
+                        
+                    except Exception as e:
+                        logger.error(f"上传文件 {file_path} 失败: {str(e)}")
+                        errors.append({
+                            'filename': file_path,
+                            'error': str(e)
+                        })
+                
+                # 返回上传结果
+                return JSONResponse(content={
+                    'success': True if uploaded_files else False,
+                    'message': f'成功上传文件夹中的 {len(uploaded_files)} 个文件，失败 {len(errors)} 个',
+                    'uploaded_files': uploaded_files,
+                    'errors': errors
+                })
+            else:
+                # 普通文件上传处理（原有代码）
+                for file in files:
+                    try:
+                        # 构建目标文件路径
+                        target_file_path = full_path / file.filename
+                        
+                        # 检查文件是否已存在
+                        if os.path.exists(target_file_path):
+                            logger.warning(f"文件已存在: {target_file_path}")
+                            errors.append({
+                                'filename': file.filename,
+                                'error': '文件已存在'
+                            })
+                            continue
+                        
+                        # 保存文件
+                        logger.debug(f"保存上传的文件: {target_file_path}")
+                        content = await file.read()
+                        with open(target_file_path, "wb") as f:
+                            f.write(content)
+                        
+                        # 记录成功上传的文件
+                        file_stats = os.stat(target_file_path)
+                        uploaded_files.append({
+                            'filename': file.filename,
+                            'size': file_stats.st_size,
+                            'modified': file_stats.st_mtime
+                        })
+                        
+                        logger.info(f"用户 {username} 成功上传文件: {file.filename} 到 {path}")
+                        
+                        # 检查是否需要自动解压
+                        if "auto_extract" in form and form["auto_extract"] == "true":
+                            if file.filename.lower().endswith(('.zip', '.rar', '.7z', '.tar', '.gz', '.tar.gz')):
+                                logger.info(f"请求自动解压文件: {file.filename}")
+                                # 调用解压函数
+                                extract_result = await extract_archive(
+                                    archive_path=str(target_file_path),
+                                    destination=str(full_path),
+                                    overwrite=False
+                                )
+                                # 合并解压结果
+                                if extract_result.get('success', False):
+                                    logger.info(f"自动解压成功: {file.filename}")
+                                else:
+                                    logger.warning(f"自动解压失败: {file.filename}, {extract_result.get('message', '')}")
+                        
+                    except Exception as e:
+                        logger.error(f"上传文件 {file.filename} 失败: {str(e)}")
                         errors.append({
                             'filename': file.filename,
-                            'error': '文件已存在'
+                            'error': str(e)
                         })
-                        continue
-                    
-                    # 保存文件
-                    logger.debug(f"保存上传的文件: {target_file_path}")
-                    content = await file.read()
-                    with open(target_file_path, "wb") as f:
-                        f.write(content)
-                    
-                    # 记录成功上传的文件
-                    file_stats = os.stat(target_file_path)
-                    uploaded_files.append({
-                        'filename': file.filename,
-                        'size': file_stats.st_size,
-                        'modified': file_stats.st_mtime
-                    })
-                    
-                    logger.info(f"用户 {username} 成功上传文件: {file.filename} 到 {path}")
-                    
-                except Exception as e:
-                    logger.error(f"上传文件 {file.filename} 失败: {str(e)}")
-                    errors.append({
-                        'filename': file.filename,
-                        'error': str(e)
-                    })
-            
-            # 返回上传结果
-            return JSONResponse(content={
-                'success': True if uploaded_files else False,
-                'message': f'成功上传 {len(uploaded_files)} 个文件，失败 {len(errors)} 个' if uploaded_files else '上传失败',
-                'uploaded_files': uploaded_files,
-                'errors': errors
-            })
+                
+                # 返回上传结果
+                return JSONResponse(content={
+                    'success': True if uploaded_files else False,
+                    'message': f'成功上传 {len(uploaded_files)} 个文件，失败 {len(errors)} 个' if uploaded_files else '上传失败',
+                    'uploaded_files': uploaded_files,
+                    'errors': errors
+                })
             
         except Exception as e:
             logger.error(f"文件上传过程中发生错误: {str(e)}")
@@ -2499,6 +2631,377 @@ def setup_routes():
                 status_code=500,
                 content={"success": False, "message": f"服务器错误: {str(e)}"}
             )
+
+    # 添加压缩包解压API
+    @app.post("/api/files/extract")
+    async def api_files_extract(
+        request: Request, 
+        file_path: str = Form(...), 
+        destination: str = Form(...),
+        overwrite: bool = Form(False)
+    ):
+        """解压压缩文件到指定目录"""
+        try:
+            # 检查认证状态
+            username = await check_auth(request)
+            if not username:
+                logger.warning("文件解压API访问失败：未认证")
+                return JSONResponse(status_code=401, content={
+                    'success': False, 
+                    'message': '未认证，请先登录'
+                })
+            
+            # 处理相对路径
+            if not file_path.startswith('/'):
+                file_path = '/' + file_path
+                
+            if not destination.startswith('/'):
+                destination = '/' + destination
+            
+            # 获取完整路径 - 从项目根目录开始
+            root_dir = Path(current_dir).parent
+            full_file_path = root_dir / file_path.lstrip('/')
+            full_destination = root_dir / destination.lstrip('/')
+            
+            logger.debug(f"用户 {username} 请求解压文件: {file_path} -> {destination}")
+            
+            # 安全检查：确保路径在项目目录内
+            if not os.path.abspath(full_file_path).startswith(os.path.abspath(root_dir)):
+                logger.warning(f"尝试访问不安全的文件路径: {full_file_path}")
+                return JSONResponse(status_code=403, content={
+                    'success': False, 
+                    'message': '无法访问项目目录外的文件'
+                })
+                
+            if not os.path.abspath(full_destination).startswith(os.path.abspath(root_dir)):
+                logger.warning(f"尝试解压到不安全的路径: {full_destination}")
+                return JSONResponse(status_code=403, content={
+                    'success': False, 
+                    'message': '无法解压到项目目录外的位置'
+                })
+            
+            # 确保目标目录存在
+            os.makedirs(full_destination, exist_ok=True)
+            
+            # 调用解压函数
+            return await extract_archive(
+                archive_path=str(full_file_path),
+                destination=str(full_destination),
+                overwrite=overwrite
+            )
+            
+        except Exception as e:
+            logger.error(f"解压文件过程中发生错误: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": f"服务器错误: {str(e)}"}
+            )
+            
+    # 解压缩文件的辅助函数
+    async def extract_archive(archive_path: str, destination: str, overwrite: bool = False) -> dict:
+        """解压缩文件
+
+        Args:
+            archive_path: 压缩文件路径
+            destination: 解压目标路径
+            overwrite: 是否覆盖已存在的文件
+
+        Returns:
+            dict: 解压结果
+        """
+        logger.info(f"开始解压文件: {archive_path} -> {destination}")
+        
+        # 确保目标路径存在
+        os.makedirs(destination, exist_ok=True)
+        
+        # 提取文件扩展名
+        file_ext = os.path.splitext(archive_path.lower())[1]
+        if file_ext == '.gz' and archive_path.lower().endswith('.tar.gz'):
+            file_ext = '.tar.gz'
+        
+        # 记录已解压的文件
+        extracted_files = []
+        
+        try:
+            # 检查文件是否存在
+            if not os.path.exists(archive_path):
+                logger.error(f"压缩文件不存在: {archive_path}")
+                return {
+                    'success': False,
+                    'message': '文件不存在'
+                }
+            
+            # 根据不同压缩格式处理
+            if file_ext in ['.zip', '.rar', '.7z']:
+                # 使用shutil解压zip文件
+                if file_ext == '.zip':
+                    try:
+                        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                            # 获取文件列表
+                            file_list = zip_ref.namelist()
+                            
+                            # 确保安全：检查是否包含绝对路径或父目录引用
+                            for file_name in file_list:
+                                if file_name.startswith('/') or '..' in file_name:
+                                    return {
+                                        'success': False,
+                                        'message': f'压缩包含不安全的路径: {file_name}'
+                                    }
+                            
+                            # 执行解压
+                            for file_name in file_list:
+                                target_path = os.path.join(destination, file_name)
+                                
+                                # 如果是目录，创建它
+                                if file_name.endswith('/') or file_name.endswith('\\'):
+                                    os.makedirs(target_path, exist_ok=True)
+                                    continue
+                                    
+                                # 确保父目录存在
+                                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                                
+                                # 检查文件是否已存在且不覆盖
+                                if os.path.exists(target_path) and not overwrite:
+                                    logger.warning(f"文件已存在且不覆盖: {target_path}")
+                                    continue
+                                
+                                # 解压文件
+                                with zip_ref.open(file_name) as source, open(target_path, 'wb') as target:
+                                    shutil.copyfileobj(source, target)
+                                
+                                extracted_files.append(file_name)
+                                
+                    except zipfile.BadZipFile as e:
+                        return {
+                            'success': False,
+                            'message': f'无效的ZIP文件: {str(e)}'
+                        }
+                else:
+                    # 对于非ZIP的归档文件，优先使用Python库解压
+                    try:
+                        if file_ext == '.rar' and rarfile is not None:
+                            logger.info("使用rarfile库解压RAR文件")
+                            with rarfile.RarFile(archive_path) as rf:
+                                # 获取文件列表
+                                file_list = rf.namelist()
+                                
+                                # 确保安全：检查是否包含绝对路径或父目录引用
+                                for file_name in file_list:
+                                    if file_name.startswith('/') or '..' in file_name:
+                                        return {
+                                            'success': False,
+                                            'message': f'压缩包含不安全的路径: {file_name}'
+                                        }
+                                
+                                # 执行解压
+                                for file_name in file_list:
+                                    # 构建目标路径
+                                    target_path = os.path.join(destination, file_name)
+                                    
+                                    # 如果是目录，创建它
+                                    if file_name.endswith('/') or file_name.endswith('\\'):
+                                        os.makedirs(target_path, exist_ok=True)
+                                        continue
+                                        
+                                    # 确保父目录存在
+                                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                                    
+                                    # 检查文件是否已存在且不覆盖
+                                    if os.path.exists(target_path) and not overwrite:
+                                        logger.warning(f"文件已存在且不覆盖: {target_path}")
+                                        continue
+                                    
+                                    # 提取文件
+                                    with rf.open(file_name) as source, open(target_path, 'wb') as target:
+                                        shutil.copyfileobj(source, target)
+                                    
+                                    extracted_files.append(file_name)
+                                
+                                logger.info(f"成功解压RAR文件: {archive_path}，共 {len(extracted_files)} 个文件")
+                                return {
+                                    'success': True,
+                                    'message': f'成功解压 {len(extracted_files)} 个文件',
+                                    'extracted_files': extracted_files[:100],  # 限制返回的文件数量
+                                    'total_files': len(extracted_files)
+                                }
+                        elif file_ext == '.7z' and py7zr is not None:
+                            logger.info("使用py7zr库解压7Z文件")
+                            with py7zr.SevenZipFile(archive_path, mode='r') as z:
+                                # 解压文件
+                                z.extractall(path=destination)
+                                # 获取解压的文件列表
+                                extracted_files = z.getnames()
+                                
+                                logger.info(f"成功解压7Z文件: {archive_path}，共 {len(extracted_files)} 个文件")
+                                return {
+                                    'success': True,
+                                    'message': f'成功解压 {len(extracted_files)} 个文件',
+                                    'extracted_files': extracted_files[:100],  # 限制返回的文件数量
+                                    'total_files': len(extracted_files)
+                                }
+                    except ImportError as e:
+                        logger.warning(f"缺少库 {str(e)}，尝试使用外部命令")
+                    except Exception as e:
+                        logger.error(f"使用Python库解压失败: {str(e)}")
+                        
+                    # 如果Python库解压失败，尝试使用外部命令
+                    try:
+                        logger.info("尝试使用外部命令解压")
+                        # 检查系统可用命令
+                        commands_to_try = []
+                        
+                        if file_ext == '.rar':
+                            # 先尝试unrar，这是专门处理RAR的工具
+                            commands_to_try.append({
+                                'name': 'unrar',
+                                'cmd': ['unrar', 'x', '-y' if overwrite else '-n', archive_path, destination]
+                            })
+                            # 然后尝试7z系列命令
+                            for cmd_name in ['7z', '7za', '7zr', '/usr/bin/7z', '/usr/bin/7za', '/usr/bin/7zr']:
+                                commands_to_try.append({
+                                    'name': cmd_name,
+                                    'cmd': [cmd_name, 'x', '-y' if overwrite else '-n', '-o' + destination, archive_path]
+                                })
+                        elif file_ext == '.7z':
+                            # 先尝试7z系列命令
+                            for cmd_name in ['7z', '7za', '7zr', '/usr/bin/7z', '/usr/bin/7za', '/usr/bin/7zr']:
+                                commands_to_try.append({
+                                    'name': cmd_name,
+                                    'cmd': [cmd_name, 'x', '-y' if overwrite else '-n', '-o' + destination, archive_path]
+                                })
+                        
+                        # 尝试每个命令
+                        command_success = False
+                        for command in commands_to_try:
+                            try:
+                                logger.info(f"尝试使用 {command['name']} 解压")
+                                # 先测试命令是否可用
+                                subprocess.run([command['name'], '--help'], capture_output=True, text=True, timeout=2)
+                                
+                                # 执行解压命令
+                                logger.info(f"执行解压命令: {' '.join(command['cmd'])}")
+                                result = subprocess.run(command['cmd'], capture_output=True, text=True, timeout=60)
+                                
+                                if result.returncode == 0:
+                                    logger.info(f"命令 {command['name']} 执行成功")
+                                    command_success = True
+                                    # 解析输出以获取解压的文件列表
+                                    output_lines = result.stdout.splitlines()
+                                    for line in output_lines:
+                                        # 根据不同工具的输出格式查找提取的文件
+                                        if 'Extracting' in line or 'Extraindo' in line or '提取' in line:
+                                            parts = line.split()
+                                            if len(parts) > 0:
+                                                file_info = parts[-1].strip()
+                                                extracted_files.append(file_info)
+                                
+                                    if not extracted_files:
+                                        # 如果没有从输出中解析到文件列表，扫描目录
+                                        for root, dirs, files in os.walk(destination):
+                                            for file in files:
+                                                file_path = os.path.join(root, file)
+                                                rel_path = os.path.relpath(file_path, destination)
+                                                extracted_files.append(rel_path)
+                                
+                                    logger.info(f"解压成功，共解压 {len(extracted_files)} 个文件")
+                                    return {
+                                        'success': True,
+                                        'message': f'成功解压 {len(extracted_files)} 个文件',
+                                        'extracted_files': extracted_files[:100],  # 限制返回的文件数量
+                                        'total_files': len(extracted_files)
+                                    }
+                                else:
+                                    logger.warning(f"命令 {command['name']} 执行失败，返回码: {result.returncode}")
+                                    logger.warning(f"错误输出: {result.stderr}")
+                            except FileNotFoundError:
+                                logger.warning(f"命令 {command['name']} 不可用")
+                            except subprocess.TimeoutExpired:
+                                logger.warning(f"命令 {command['name']} 执行超时")
+                        
+                        # 检查所有命令是否都已尝试且全部失败
+                        if not command_success:
+                            logger.error(f"所有解压命令尝试均失败，无法解压 {archive_path}")
+                            return {
+                                'success': False,
+                                'message': f'无法解压 {file_ext} 文件: 所有解压工具尝试均失败。请在服务器上安装unrar或7z工具。'
+                            }
+                            
+                    except Exception as e:
+                        logger.error(f"使用外部命令解压过程中发生错误: {str(e)}")
+                        return {
+                            'success': False,
+                            'message': f'解压失败: {str(e)}'
+                        }
+            elif file_ext in ['.tar', '.gz', '.tar.gz', '.tgz']:
+                # 使用tarfile模块解压tar文件
+                try:
+                    import tarfile
+                    
+                    # 确定打开模式
+                    mode = 'r:gz' if file_ext in ['.gz', '.tar.gz', '.tgz'] else 'r'
+                    
+                    with tarfile.open(archive_path, mode) as tar:
+                        # 获取成员列表
+                        members = tar.getmembers()
+                        
+                        # 安全检查
+                        for member in members:
+                            if member.name.startswith('/') or '..' in member.name:
+                                return {
+                                    'success': False,
+                                    'message': f'压缩包含不安全的路径: {member.name}'
+                                }
+                        
+                        # 解压文件
+                        for member in members:
+                            target_path = os.path.join(destination, member.name)
+                            
+                            # 跳过已存在且不覆盖的文件
+                            if os.path.exists(target_path) and not overwrite:
+                                if member.isreg():  # 只记录常规文件
+                                    logger.warning(f"文件已存在且不覆盖: {target_path}")
+                                continue
+                            
+                            tar.extract(member, destination)
+                            
+                            if member.isreg():  # 只记录常规文件
+                                extracted_files.append(member.name)
+                        
+                except tarfile.ReadError as e:
+                    return {
+                        'success': False,
+                        'message': f'无效的TAR文件: {str(e)}'
+                    }
+            else:
+                return {
+                    'success': False,
+                    'message': f'不支持的压缩格式: {file_ext}'
+                }
+            
+            # 检查是否有任何文件被成功解压
+            if not extracted_files:
+                logger.warning(f"没有文件被解压: {archive_path}")
+                return {
+                    'success': False,
+                    'message': '解压过程完成，但没有文件被解压。请检查压缩文件是否有效或安装必要的解压工具。'
+                }
+            
+            # 记录解压完成
+            logger.info(f"成功解压文件: {archive_path}，共 {len(extracted_files)} 个文件")
+            
+            return {
+                'success': True,
+                'message': f'成功解压 {len(extracted_files)} 个文件',
+                'extracted_files': extracted_files[:100],  # 限制返回的文件数量
+                'total_files': len(extracted_files)
+            }
+            
+        except Exception as e:
+            logger.error(f"解压文件失败: {str(e)}")
+            return {
+                'success': False,
+                'message': f'解压失败: {str(e)}'
+            }
 
     # 添加登出API
     @app.post("/api/auth/logout", response_class=JSONResponse)

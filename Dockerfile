@@ -8,16 +8,24 @@ ENV TZ=Asia/Shanghai
 ENV IMAGEIO_FFMPEG_EXE=/usr/bin/ffmpeg
 
 # 安装系统依赖
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     redis-server \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential \
+    python3-dev \
+    p7zip-full \
+    unrar-free \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/7za /usr/bin/7z
 
 # 复制 Redis 配置
 COPY redis.conf /etc/redis/redis.conf
 
 # 复制依赖文件
 COPY requirements.txt .
+
+# 升级 pip
+RUN pip install --upgrade pip
 
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt
@@ -30,4 +38,3 @@ COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 CMD ["./entrypoint.sh"]
-

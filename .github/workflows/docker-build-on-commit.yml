@@ -5,23 +5,22 @@ on:
     branches:
       - main
     paths:
-      - 'Dockerfile'
-      - 'docker-compose.yml'
-      - '**.py'
-      - 'requirements.txt'
-      - '**.conf'
-      - '**.toml'
-      - '**.yml'
-      - '.github/workflows/docker-build-on-commit.yml'
-      - '.dockerignore'
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "**.py"
+      - "requirements.txt"
+      - "**.conf"
+      - "**.toml"
+      - "**.yml"
+      - ".github/workflows/docker-build-on-commit.yml"
+      - ".dockerignore"
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: 设置 QEMU 模拟器
         uses: docker/setup-qemu-action@v2
@@ -56,7 +55,7 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/xybotv2:latest
-            ${{ vars.DOCKERHUB_USERNAME }}/xybotv2:${{ env.GIT_SHA }}
-          cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/xybotv2:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/xxxbot:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/xxxbot:${{ env.GIT_SHA }}
+          cache-from: type=registry,ref=${{ vars.DOCKERHUB_USERNAME }}/XXXBot:latest
           cache-to: type=inline,mode=max
