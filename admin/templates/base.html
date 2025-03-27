@@ -165,6 +165,12 @@
                 <div class="d-flex align-items-center">
                     <h1 class="h4 mb-0 text-gray-800">{% block page_title %}控制面板{% endblock %}</h1>
                 </div>
+                
+                <div class="ms-auto">
+                    <button id="restart-container-btn" class="btn btn-sm btn-danger" style="z-index:9999; position:relative; padding: 8px 16px; font-weight: bold; cursor: pointer !important; pointer-events: auto !important;" onclick="restartContainer()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>重启容器
+                    </button>
+                </div>
             </div>
         </nav>
         
@@ -292,6 +298,74 @@
                 toastEl.addEventListener('hidden.bs.toast', function() {
                     toastEl.remove();
                 });
+            };
+
+            // 重启容器函数
+            window.restartContainer = function() {
+                console.log('重启容器按钮被点击 (内联函数)');
+                
+                if (confirm('确定要重启容器吗？这将导致服务短暂中断。')) {
+                    console.log('用户确认重启');
+                    
+                    // 显示加载状态
+                    const restartBtn = document.getElementById('restart-container-btn');
+                    if (restartBtn) {
+                        restartBtn.disabled = true;
+                        restartBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>重启中...';
+                    }
+                    
+                    // 使用当前主机名和端口构建正确的URL
+                    const apiUrl = window.location.origin + '/api/system/restart';
+                    console.log('发送重启请求到:', apiUrl);
+                    
+                    // 调用重启API
+                    fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',  // 确保发送认证Cookie
+                        body: JSON.stringify({})
+                    })
+                    .then(response => {
+                        console.log('收到重启API响应:', response);
+                        if (!response.ok) {
+                            throw new Error('API响应状态码: ' + response.status);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('重启API响应数据:', data);
+                        
+                        if (data.success) {
+                            // 显示成功消息
+                            showToast('重启已开始', data.message || '容器正在重启，页面将在几秒后自动刷新...', 'success');
+                            
+                            // 5秒后刷新页面
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 5000);
+                        } else {
+                            // 显示错误
+                            showToast('重启失败', data.error || '重启请求失败', 'error');
+                            // 恢复按钮状态
+                            if (restartBtn) {
+                                restartBtn.disabled = false;
+                                restartBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>重启容器';
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('重启请求失败:', error);
+                        showToast('重启失败', '请求发送失败: ' + error.message, 'error');
+                        // 恢复按钮状态
+                        const restartBtn = document.getElementById('restart-container-btn');
+                        if (restartBtn) {
+                            restartBtn.disabled = false;
+                            restartBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>重启容器';
+                        }
+                    });
+                }
             };
         });
     </script>

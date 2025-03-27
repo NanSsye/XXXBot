@@ -33,6 +33,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY . .
 
+# 设置权限 - 整个项目目录
+RUN chmod -R 755 /app \
+    && if [ -f /app/WechatAPI/core/XYWechatPad ]; then chmod +x /app/WechatAPI/core/XYWechatPad; fi \
+    && find /app -type f -name "*.py" -exec chmod +x {} \; \
+    && find /app -type f -name "*.sh" -exec chmod +x {} \;
+
 # 启动脚本
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh

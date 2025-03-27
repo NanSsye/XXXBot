@@ -9,6 +9,13 @@ const DEFAULT_AVATAR = '/static/img/favicon.ico'; // 默认头像图片
 
 // 当文档加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded 事件触发，开始初始化管理界面...');
+    
+    // 调试所有按钮
+    document.querySelectorAll('button').forEach(btn => {
+        console.log('找到按钮:', btn.id || '未命名按钮', btn.innerText);
+    });
+    
     // 初始化侧边栏
     initSidebar();
     
@@ -18,11 +25,73 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检查bot状态
     checkBotStatus();
     
-    // 定期检查bot状态（每5秒）
-    setInterval(checkBotStatus, 5000);
+    // 定期检查bot状态（每10秒）
+    setInterval(checkBotStatus, 10000);
     
     // 检查登录状态
     checkLoginStatus();
+    
+    // 初始化管理后台重新登录按钮
+    const reloginBtn = document.getElementById('relogin-btn');
+    if (reloginBtn) {
+        reloginBtn.addEventListener('click', function() {
+            window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+        });
+    }
+    
+    // 确保在页面加载后延迟一点时间再绑定重启按钮事件
+    setTimeout(function() {
+        /*
+        // 初始化重启容器按钮
+        const restartContainerBtn = document.getElementById('restart-container-btn');
+        console.log('延迟获取重启按钮:', restartContainerBtn);
+        
+        if (restartContainerBtn) {
+            console.log('找到重启容器按钮，添加点击事件');
+            
+            // 添加一个显式的样式，确保按钮可见
+            restartContainerBtn.style.backgroundColor = '#dc3545';
+            restartContainerBtn.style.color = 'white';
+            restartContainerBtn.style.zIndex = '9999';
+            restartContainerBtn.style.position = 'relative';
+            
+            // 确保按钮不被禁用
+            restartContainerBtn.disabled = false;
+            
+            // 使用多种方式绑定点击事件
+            restartContainerBtn.onclick = function(event) {
+                console.log('重启按钮被点击 (onclick)');
+                handleRestartButtonClick(event, restartContainerBtn);
+            };
+            
+            restartContainerBtn.addEventListener('click', function(event) {
+                console.log('重启按钮被点击 (addEventListener)');
+                handleRestartButtonClick(event, restartContainerBtn);
+            });
+            
+            // 直接在按钮上添加调试消息
+            restartContainerBtn.title = '点击此按钮重启容器 (更新于' + new Date().toLocaleTimeString() + ')';
+        } else {
+            console.warn('未找到重启容器按钮！尝试备用方法...');
+            // 备用方法：尝试通过选择器查找
+            const allButtons = document.querySelectorAll('button');
+            console.log('页面上的所有按钮数量:', allButtons.length);
+            
+            allButtons.forEach(btn => {
+                if (btn.textContent.includes('重启容器')) {
+                    console.log('通过内容找到重启按钮:', btn);
+                    btn.id = 'restart-container-btn';
+                    btn.onclick = function(event) {
+                        console.log('通过备用方法绑定的重启按钮被点击');
+                        handleRestartButtonClick(event, btn);
+                    };
+                }
+            });
+        }
+        */
+        // 重启按钮现在由base.html中的内联函数处理
+        console.log('重启按钮现在由base.html中的内联函数处理');
+    }, 500);
     
     // 初始化刷新状态按钮
     const refreshStatusBtn = document.getElementById('refresh-status');
@@ -519,4 +588,77 @@ function updateBotStatusUI(status) {
         wxid: status.wxid,
         alias: status.alias
     });
-} 
+}
+
+/**
+ * 处理重启按钮点击事件
+ */
+/*
+function handleRestartButtonClick(event, button) {
+    // 阻止事件冒泡和默认行为
+    event.preventDefault();
+    event.stopPropagation();
+    
+    console.log('重启容器按钮被点击，按钮状态:', 
+                '禁用=', button.disabled,
+                '可见性=', button.style.display,
+                'z-index=', button.style.zIndex);
+    
+    if (confirm('确定要重启容器吗？这将导致服务短暂中断。')) {
+        console.log('用户确认重启');
+        
+        // 显示加载状态
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>重启中...';
+        
+        // 使用当前主机名和端口构建正确的URL
+        const apiUrl = window.location.origin + '/api/system/restart';
+        console.log('发送重启请求到:', apiUrl);
+        
+        // 调用重启API
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',  // 确保发送认证Cookie
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            console.log('收到重启API响应:', response);
+            if (!response.ok) {
+                throw new Error('API响应状态码: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('重启API响应数据:', data);
+            
+            if (data.success) {
+                // 显示成功消息
+                showToast('重启已开始', data.message || '容器正在重启，页面将在几秒后自动刷新...', 'success');
+                
+                // 5秒后刷新页面
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            } else {
+                // 显示错误
+                showToast('重启失败', data.error || '重启请求失败', 'error');
+                // 恢复按钮状态
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>重启容器';
+            }
+        })
+        .catch(error => {
+            console.error('重启请求失败:', error);
+            showToast('重启失败', '请求发送失败: ' + error.message, 'error');
+            // 恢复按钮状态
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>重启容器';
+        });
+    } else {
+        console.log('用户取消重启');
+    }
+}
+*/ 

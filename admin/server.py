@@ -619,6 +619,169 @@ def setup_routes():
             }
         )
     
+    # API: 重启容器
+    @app.post("/api/system/restart", response_class=JSONResponse)
+    async def api_restart_container(request: Request):
+        """重启容器API"""
+        # 检查认证状态
+        try:
+            username = await check_auth(request)
+            if not username:
+                return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+        except Exception as e:
+            logger.error(f"认证检查失败: {str(e)}")
+            return JSONResponse(status_code=401, content={"success": False, "error": "认证失败"})
+        
+        try:
+            logger.info(f"用户 {username} 请求重启容器")
+            
+            # 创建一个后台任务来执行重启
+            async def restart_task():
+                # 在函数内部导入所需模块，避免作用域问题
+                import os
+                import sys
+                import asyncio
+                import subprocess
+                from pathlib import Path
+                
+                # 等待1秒让响应先返回
+                await asyncio.sleep(1)
+                logger.warning("正在重启容器...")
+                
+                # 检测是否在Docker容器中运行
+                in_docker = os.path.exists('/.dockerenv') or os.path.exists('/app/.dockerenv')
+                logger.info(f"是否在Docker环境中: {in_docker}")
+                
+                if in_docker:
+                    # Docker环境下的重启策略
+                    logger.info("在Docker环境中运行，使用Docker特定的重启方法")
+                    
+                    # 方法1: 尝试向自己发送SIGTERM信号，让Docker重启策略生效
+                    try:
+                        import signal
+                        logger.info("尝试向PID 1发送SIGTERM信号")
+                        os.kill(1, signal.SIGTERM)
+                        # 等待信号生效
+                        await asyncio.sleep(5)
+                    except Exception as e:
+                        logger.error(f"发送SIGTERM失败: {e}")
+                    
+                    # 方法2: 尝试使用docker命令重启当前容器
+                    try:
+                        # 获取当前容器ID
+                        container_id = subprocess.check_output(["cat", "/proc/self/cgroup"]).decode('utf-8')
+                        if 'docker' in container_id:
+                            # 提取容器ID
+                            for line in container_id.splitlines():
+                                if 'docker' in line:
+                                    parts = line.split('/')
+                                    if len(parts) > 2:
+                                        container_id = parts[-1]
+                                        logger.info(f"检测到容器ID: {container_id}")
+                                        # 尝试使用docker命令重启
+                                        cmd = f"docker restart {container_id}"
+                                        logger.info(f"执行命令: {cmd}")
+                                        # 使用一个简单的Shell脚本来执行docker命令
+                                        restart_cmd = f"sleep 2 && {cmd} &"
+                                        subprocess.Popen(["sh", "-c", restart_cmd])
+                                        break
+                    except Exception as e:
+                        logger.error(f"使用docker命令重启失败: {e}")
+                    
+                    # 方法3: 最后的方法，直接退出进程，依靠Docker的自动重启策略
+                    logger.info("使用最后的方法: 直接退出进程")
+                    os._exit(1)  # 使用非零退出码，通常会触发Docker的重启策略
+                
+                else:
+                    # 非Docker环境下的重启策略
+                    # 获取当前脚本的路径和执行命令
+                    current_file = os.path.abspath(__file__)
+                    parent_dir = os.path.dirname(current_file)
+                    run_server_path = os.path.join(parent_dir, "run_server.py")
+                    
+                    # 确定Python解释器路径
+                    python_executable = sys.executable or "python"
+                    
+                    # 获取当前工作目录
+                    cwd = os.getcwd()
+                    
+                    # 创建一个重启脚本，保证在当前进程结束后仍能启动新进程
+                    restart_script = os.path.join(parent_dir, "restart_helper.py")
+                    
+                    logger.info(f"创建重启辅助脚本: {restart_script}")
+                    try:
+                        with open(restart_script, 'w') as f:
+                            f.write(f"""#!/usr/bin/env python
+import os
+import sys
+import time
+import subprocess
+
+# 等待原进程结束
+time.sleep(2)
+
+# 重启服务器
+cmd = ["{python_executable}", "{run_server_path}"]
+print("执行重启命令:", " ".join(cmd))
+subprocess.Popen(cmd, cwd="{cwd}", shell=False)
+
+# 删除自身
+try:
+    os.remove(__file__)
+except:
+    pass
+""")
+                    except Exception as e:
+                        logger.error(f"创建重启脚本失败: {e}")
+                        return
+                    
+                    # 使脚本可执行
+                    try:
+                        os.chmod(restart_script, 0o755)
+                    except Exception as e:
+                        logger.warning(f"设置重启脚本权限失败: {e}")
+                    
+                    # 启动重启脚本
+                    logger.info(f"启动重启脚本: {restart_script}")
+                    try:
+                        if sys.platform.startswith('win'):
+                            # Windows
+                            subprocess.Popen([python_executable, restart_script], 
+                                            creationflags=subprocess.DETACHED_PROCESS)
+                        else:
+                            # Linux/Unix
+                            subprocess.Popen([python_executable, restart_script], 
+                                            start_new_session=True)
+                    except Exception as e:
+                        logger.error(f"启动重启脚本失败: {e}")
+                        return
+                
+                # 等待一点时间让重启脚本启动
+                await asyncio.sleep(1)
+                
+                # 结束当前进程
+                logger.info("正在关闭当前进程...")
+                try:
+                    os._exit(0)
+                except Exception as e:
+                    logger.error(f"关闭进程失败: {e}")
+                    sys.exit(0)
+            
+            # 启动后台任务
+            asyncio.create_task(restart_task())
+            
+            # 使用明确的JSONResponse返回
+            return JSONResponse(content={
+                "success": True,
+                "message": "容器正在重启，页面将在几秒后自动刷新..."
+            })
+        except Exception as e:
+            logger.error(f"重启容器失败: {str(e)}")
+            return JSONResponse(content={
+                "success": False,
+                "error": f"重启容器失败: {str(e)}"
+            })
+    
     # 用户登录API
     @app.post("/api/auth/login", response_class=JSONResponse)
     async def login_api(request: Request, response: Response):
@@ -962,15 +1125,9 @@ def setup_routes():
             except ImportError as e:
                 logger.error(f"导入plugin_manager失败: {str(e)}")
                 return {"success": False, "error": f"导入plugin_manager失败: {str(e)}"}
-            except Exception as e:
-                logger.error(f"获取插件信息失败: {str(e)}")
-                return {"success": False, "error": f"获取插件信息失败: {str(e)}"}
-                
         except Exception as e:
-            logger.error(f"获取插件列表失败: {str(e)}")
-            # 返回详细错误信息
-            error_msg = f"{str(e)}\n{traceback.format_exc()}"
-            return {"success": False, "error": error_msg}
+            logger.error(f"获取插件信息失败: {str(e)}")
+            return {"success": False, "error": f"获取插件信息失败: {str(e)}"}
     
     # API: 启用插件
     @app.post("/api/plugins/{plugin_name}/enable", response_class=JSONResponse)
@@ -1317,8 +1474,8 @@ def setup_routes():
                     with open(temp_file, "w", encoding="utf-8") as f:
                         json.dump(data, f, ensure_ascii=False, indent=2)
                     
-                    return {
-                        "success": False, 
+            return {
+                "success": False,
                         "error": f"无法连接到服务器: {str(e)}",
                         "message": "提交已保存到本地，将在网络恢复后自动同步"
                     }
