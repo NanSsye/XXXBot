@@ -27,7 +27,7 @@ sleep 3
 
 # 启动管理后台服务器
 echo "启动管理后台服务器..."
-python admin/run_server.py --host 0.0.0.0 --port 9090 &
+python admin/run_server.py --host 0.0.0.0 --port 8080 &
 
 # 等待管理后台启动
 sleep 2
