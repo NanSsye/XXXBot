@@ -14,12 +14,13 @@ from fastapi import FastAPI, Request, Response, Depends, HTTPException, WebSocke
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from itsdangerous import URLSafeSerializer
 from functools import wraps
+import websockets
 
 from loguru import logger
 import psutil
@@ -590,8 +591,8 @@ def init_app():
     
     # 配置静态文件目录
     static_dir = os.path.join(current_dir, "static")
-    app.mount("/static", StaticFiles(directory=static_dir), name="admin.static")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    app.mount("/admin/static", StaticFiles(directory=static_dir), name="admin.static")
     
     # 添加中间件
     app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -968,36 +969,46 @@ except:
     @app.get("/system", response_class=HTMLResponse)
     async def system_page(request: Request):
         # 检查认证状态
-        username = await check_auth(request)
-        if not username:
-            # 未认证，重定向到登录页面
-            return RedirectResponse(url="/login")
-        
         try:
-            # 获取系统状态信息
-            system_info = get_system_info()
+            username = await check_auth(request)
+        except HTTPException:
+            return RedirectResponse(url="/login?next=/system")
+        
+        # 获取系统状态信息
+        try:
             system_status = get_system_status()
-            
-            # 获取联系人信息
-            contact_stats = {'total': 0, 'friends': 0, 'groups': 0, 'official': 0}
-            
-            logger.debug(f"系统信息: {system_info}")
-            logger.debug(f"系统状态: {system_status}")
-            
-            return templates.TemplateResponse(
-                "system.html", 
-                {
-                    "request": request, 
-                    "bot": bot_instance,
-                    "active_page": "system",
-                    "system_info": system_info,
-                    "system_status": system_status,
-                    "contact_stats": contact_stats
-                }
-            )
         except Exception as e:
-            logger.error(f"系统页面渲染失败: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"获取系统状态失败: {str(e)}")
+            system_status = {}
+        
+        # 返回系统页面
+        return templates.TemplateResponse(
+            "system.html", 
+            {
+                "request": request,
+                "active_page": "system",
+                "system_status": system_status
+            }
+        )
+        
+    # 添加终端页面路由
+    @app.get("/terminal", response_class=HTMLResponse)
+    async def terminal_page(request: Request):
+        # 检查认证状态
+        try:
+            username = await check_auth(request)
+        except HTTPException:
+            return RedirectResponse(url="/login?next=/terminal")
+        
+        # 返回终端页面
+        logger.info(f"用户请求访问终端页面")
+        return templates.TemplateResponse(
+            "terminal.html", 
+            {
+                "request": request,
+                "active_page": "terminal"
+            }
+        )
     
     # API: 系统状态 (需要认证)
     @app.get("/api/system/status", response_class=JSONResponse)
@@ -4824,3 +4835,462 @@ def get_bot(wxid):
         except Exception as e:
             logger.error(f"安装插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
+
+
+    # WeTTy终端页面和WebSocket代理
+    @app.get("/wetty")
+    @app.get("/wetty/{path:path}")
+    @app.post("/wetty/{path:path}")
+    async def wetty_proxy(request: Request, path: str = ""):
+        try:
+            # 检查认证状态
+            username = await check_auth(request)
+            if not username:
+                logger.warning("未认证用户尝试访问终端代理")
+                return JSONResponse(status_code=401, content={"error": "未认证"})
+        
+            logger.debug(f"处理WeTTy代理请求: path={path}, method={request.method}")
+            
+            # 获取WeTTy服务的URL (默认运行在3000端口)
+            # 在Docker环境中使用localhost或127.0.0.1访问同一容器中的服务
+            wetty_url = f"http://127.0.0.1:3000/{path}" if path else "http://127.0.0.1:3000/"
+            
+            # 打印更多调试信息
+            logger.info(f"尝试代理请求到WeTTy服务: {wetty_url}")
+            
+            # 处理可能的WebSocket升级请求
+            if "upgrade" in request.headers and request.headers["upgrade"].lower() == "websocket":
+                logger.debug("检测到WebSocket升级请求")
+                
+                # 尝试直接代理WebSocket连接
+                try:
+                    # 创建到后端WebSocket服务的连接
+                    ws_url = f"ws://127.0.0.1:3000/{path}" if path else "ws://127.0.0.1:3000/"
+                    logger.info(f"尝试转发WebSocket连接到: {ws_url}")
+                    
+                    # 创建WebSocket响应
+                    return Response(
+                        content="",
+                        status_code=101,
+                        headers={
+                            "Upgrade": "websocket",
+                            "Connection": "Upgrade",
+                            "Sec-WebSocket-Accept": request.headers.get("Sec-WebSocket-Key", ""),
+                            "Sec-WebSocket-Version": request.headers.get("Sec-WebSocket-Version", "13"),
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"WebSocket连接失败: {str(e)}")
+                    # 返回错误信息，告知用户wetty服务可能未启动
+                    return JSONResponse(
+                        status_code=503,
+                        content={
+                            "error": "WeTTy服务WebSocket连接失败",
+                            "message": str(e),
+                            "suggestion": "请检查WeTTy服务状态"
+                        }
+                    )
+        
+            # 转发普通HTTP请求到WeTTy服务
+            try:
+                logger.debug(f"转发HTTP请求到WeTTy: {wetty_url}")
+                logger.debug(f"请求头: {dict(request.headers)}")  # 记录完整请求头
+                
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    try:
+                        # 转发请求时添加X-Forwarded-*头
+                        headers = {
+                            key: value for key, value in request.headers.items() 
+                            if key.lower() not in ["host", "connection"]
+                        }
+                        headers["X-Forwarded-For"] = request.client.host
+                        headers["X-Forwarded-Proto"] = request.url.scheme
+                        headers["X-Forwarded-Host"] = request.headers.get("host", "")
+                        
+                        logger.debug(f"转发头部: {headers}")
+                        
+                        response = await client.request(
+                            method=request.method,
+                            url=wetty_url,
+                            headers=headers,
+                            cookies=request.cookies,
+                            content=await request.body(),
+                            follow_redirects=True
+                        )
+                        
+                        logger.debug(f"WeTTy响应状态: {response.status_code}")
+                        
+                        # 返回从wetty服务获取的响应
+                        return Response(
+                            content=response.content,
+                            status_code=response.status_code,
+                            headers=dict(response.headers)
+                        )
+                    except Exception as e:
+                        logger.error(f"连接到WeTTy服务失败: {str(e)}")
+                        logger.error(f"请求URL: {wetty_url}")
+                        logger.error(f"请求方法: {request.method}")
+                        logger.error(f"请求头: {list(request.headers.keys())}")
+                        
+                        # 尝试使用curl命令检查wetty服务可用性
+                        try:
+                            import subprocess
+                            check_cmd = f"curl -s -o /dev/null -w '%{{http_code}}' http://127.0.0.1:3000/"
+                            logger.info(f"执行命令检查wetty服务: {check_cmd}")
+                            result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
+                            logger.info(f"curl检查结果: {result.stdout}, 错误: {result.stderr}")
+                        except Exception as curl_e:
+                            logger.error(f"执行curl命令失败: {str(curl_e)}")
+                        
+                        # 创建一个简单的错误页面
+                        error_html = f"""
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>终端服务错误</title>
+                            <style>
+                                body {{ font-family: Arial, sans-serif; padding: 20px; text-align: center; }}
+                                .error-container {{ max-width: 600px; margin: 0 auto; }}
+                                .error-title {{ color: #e74c3c; }}
+                                .error-message {{ margin: 20px 0; }}
+                                .instructions {{ text-align: left; background: #f8f9fa; padding: 15px; border-radius: 5px; }}
+                                code {{ background: #eee; padding: 2px 4px; border-radius: 3px; }}
+                            </style>
+                        </head>
+                        <body>
+                            <div class="error-container">
+                                <h1 class="error-title">终端服务不可用</h1>
+                                <div class="error-message">
+                                    WeTTy终端服务似乎未启动或无法访问。
+                                </div>
+                                <div class="instructions">
+                                    <h3>如何启动终端服务:</h3>
+                                    <p>1. 在系统上安装WeTTy: <code>npm install -g wetty</code></p>
+                                    <p>2. 启动WeTTy服务: <code>wetty --port 3000 --host 0.0.0.0 --allow-iframe</code></p>
+                                    <p>3. 刷新此页面</p>
+                                </div>
+                                <p><a href="/system">返回系统页面</a></p>
+                            </div>
+                        </body>
+                        </html>
+                        """
+                        return HTMLResponse(content=error_html, status_code=503)
+                
+            except Exception as e:
+                logger.error(f"转发HTTP请求到WeTTy服务时出错: {str(e)}")
+                return JSONResponse(
+                    status_code=502,
+                    content={"error": f"转发请求到WeTTy服务失败: {str(e)}"}
+                )
+            
+        except Exception as e:
+            logger.error(f"处理WeTTy代理请求时出错: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"代理请求处理错误: {str(e)}"}
+            )
+
+    # 专门处理/admin/wetty路径的路由
+    @app.get("/admin/wetty", response_class=HTMLResponse)
+    async def admin_wetty_route(request: Request):
+        """专门处理/admin/wetty路径的路由"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            return RedirectResponse(url="/login?next=/admin/wetty")
+        
+        logger.info(f"用户 {username} 通过专用路由访问/admin/wetty终端页面")
+        
+        # 创建一个简单的代理页面，使用iframe嵌入wetty
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>XXXBot终端</title>
+            <style>
+                body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+                iframe { width: 100%; height: 100%; border: none; }
+                .message { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 10px; border-radius: 5px; }
+            </style>
+        </head>
+        <body>
+            <div class="message">正在连接终端服务...</div>
+            <!-- 使用服务器端代理转发 -->
+            <iframe id="terminal" onload="document.querySelector('.message').style.display='none';" src="/admin/wetty/terminal" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+            
+            <script>
+            // 如果加载失败，显示错误
+            document.getElementById('terminal').onerror = function() {
+                document.querySelector('.message').innerHTML = '连接终端服务失败，请检查服务是否启动';
+                document.querySelector('.message').style.color = '#ff6b6b';
+            };
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+    
+    # 处理/admin/wetty/下的所有路径
+    @app.get("/wetty")
+    @app.get("/admin/wetty/{path:path}")
+    @app.post("/admin/wetty/{path:path}")
+    async def admin_wetty_path(request: Request, path: str):
+        """处理/admin/wetty/下的所有路径请求"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            return JSONResponse(status_code=401, content={"error": "未认证"})
+        
+        logger.info(f"用户 {username} 访问路径: /admin/wetty/{path}")
+        
+        # 转发到wetty服务
+        wetty_url = f"http://127.0.0.1:3000/{path}"
+        logger.info(f"转发请求到wetty服务: {wetty_url}")
+        
+        # 如果是WebSocket升级请求，提供适当的WebSocket响应
+        if "upgrade" in request.headers and request.headers["upgrade"].lower() == "websocket":
+            logger.info("检测到WebSocket升级请求，尝试处理")
+            try:
+                return Response(
+                    content="",
+                    status_code=101,  # Switching Protocols
+                    headers={
+                        "Upgrade": "websocket",
+                        "Connection": "Upgrade",
+                        "Sec-WebSocket-Accept": request.headers.get("Sec-WebSocket-Key", ""),
+                        "Sec-WebSocket-Version": request.headers.get("Sec-WebSocket-Version", "13"),
+                    }
+                )
+            except Exception as e:
+                logger.error(f"WebSocket升级处理失败: {str(e)}")
+                return JSONResponse(status_code=500, content={"error": f"WebSocket处理失败: {str(e)}"})
+        
+        # 普通HTTP请求处理
+        try:
+            # 使用同步请求方式，可能更适合特定场景
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.request(
+                    method=request.method,
+                    url=wetty_url,
+                    headers={k: v for k, v in request.headers.items() if k.lower() not in ["host", "connection"]},
+                    cookies=request.cookies,
+                    content=await request.body(),
+                    follow_redirects=True
+                )
+                
+                # 记录响应详情
+                logger.info(f"从wetty服务收到响应: 状态码={response.status_code}, 内容类型={response.headers.get('content-type', '未知')}")
+                
+                return Response(
+                    content=response.content,
+                    status_code=response.status_code,
+                    headers=dict(response.headers)
+                )
+        except Exception as e:
+            logger.error(f"转发请求到wetty服务失败: {str(e)}")
+            
+            # 创建自定义错误响应
+            error_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>终端服务错误</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; padding: 20px; }}
+                    .error {{ color: #e74c3c; }}
+                    .container {{ max-width: 800px; margin: 0 auto; text-align: center; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1 class="error">终端服务连接失败</h1>
+                    <p>无法连接到wetty终端服务(127.0.0.1:3000)</p>
+                    <p>错误信息: {str(e)}</p>
+                    <p>请确保wetty服务正在运行，或联系管理员</p>
+                    <p>
+                        <a href="/admin/wetty">重试</a> | 
+                        <a href="/system">返回系统页面</a>
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+            return HTMLResponse(content=error_html, status_code=503)
+
+    # 添加一个简单的终端页面，直接嵌入wetty服务
+    @app.get("/simple-terminal", response_class=HTMLResponse)
+    async def simple_terminal_page(request: Request):
+        """提供一个简单的终端页面，直接嵌入wetty服务iframe"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            return RedirectResponse(url="/login?next=/simple-terminal")
+        
+        logger.info(f"用户 {username} 访问简易终端页面")
+        
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>简易终端 - XXXBot</title>
+            <style>
+                body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
+                .container { display: flex; flex-direction: column; height: 100vh; }
+                .header { background: #1a1a1a; color: white; padding: 10px; display: flex; justify-content: space-between; }
+                .title { font-size: 18px; font-weight: bold; }
+                .content { flex: 1; }
+                iframe { width: 100%; height: 100%; border: none; }
+                .message { padding: 10px; color: white; text-align: center; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="title">XXXBot 简易终端</div>
+                    <div>
+                        <a href="/system" style="color: white; text-decoration: none;">返回</a>
+                    </div>
+                </div>
+                <div class="content">
+                    <iframe src="http://127.0.0.1:3000" id="terminal-frame" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+                </div>
+                <div class="message" id="message">正在连接终端服务...</div>
+            </div>
+            
+            <script>
+                document.getElementById('terminal-frame').onload = function() {
+                    document.getElementById('message').style.display = 'none';
+                };
+                
+                document.getElementById('terminal-frame').onerror = function() {
+                    document.getElementById('message').innerHTML = '连接终端服务失败';
+                    document.getElementById('message').style.color = 'red';
+                };
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+
+    # 添加一个专门的终端代理页面，处理/terminal-proxy路径
+    @app.get("/terminal-proxy", response_class=HTMLResponse)
+    async def terminal_proxy_page(request: Request):
+        """提供一个终端代理页面，通过服务器代理访问wetty"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            return RedirectResponse(url="/login?next=/terminal-proxy")
+        
+        logger.info(f"用户 {username} 访问终端代理页面")
+        
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>终端代理 - XXXBot</title>
+            <style>
+                body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
+                .container { display: flex; flex-direction: column; height: 100vh; }
+                .header { background: #1a1a1a; color: white; padding: 10px; display: flex; justify-content: space-between; }
+                .title { font-size: 18px; font-weight: bold; }
+                .content { flex: 1; position: relative; }
+                iframe { width: 100%; height: 100%; border: none; }
+                .message { 
+                    position: absolute; 
+                    top: 50%; 
+                    left: 50%; 
+                    transform: translate(-50%, -50%);
+                    padding: 20px; 
+                    color: white; 
+                    background: rgba(0,0,0,0.7);
+                    border-radius: 5px;
+                    z-index: 100;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="title">XXXBot 终端代理</div>
+                    <div>
+                        <a href="/system" style="color: white; text-decoration: none;">返回</a>
+                    </div>
+                </div>
+                <div class="content">
+                    <div class="message" id="message">正在连接终端服务...</div>
+                    <div id="terminal-content"></div>
+                </div>
+            </div>
+            
+            <script>
+                // 使用fetch API向服务器请求终端内容
+                async function fetchTerminal() {
+                    try {
+                        const response = await fetch('/terminal-proxy-content');
+                        
+                        if (!response.ok) {
+                            throw new Error('服务器返回错误: ' + response.status);
+                        }
+                        
+                        const html = await response.text();
+                        document.getElementById('terminal-content').innerHTML = html;
+                        document.getElementById('message').style.display = 'none';
+                    } catch (error) {
+                        console.error('获取终端内容失败:', error);
+                        document.getElementById('message').innerHTML = '连接终端服务失败: ' + error.message;
+                        document.getElementById('message').style.color = 'red';
+                    }
+                }
+                
+                // 页面加载后获取终端内容
+                document.addEventListener('DOMContentLoaded', fetchTerminal);
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+    
+    # 添加一个终端内容代理，通过服务器代理访问wetty
+    @app.get("/terminal-proxy-content", response_class=HTMLResponse)
+    async def terminal_proxy_content(request: Request):
+        """提供终端内容，通过服务器代理访问wetty"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            return JSONResponse(status_code=401, content={"error": "未认证"})
+        
+        logger.info(f"用户 {username} 请求终端代理内容")
+        
+        try:
+            # 访问wetty服务
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get("http://127.0.0.1:3000")
+                
+                if response.status_code != 200:
+                    return HTMLResponse(
+                        content=f"<div>无法连接到终端服务，状态码: {response.status_code}</div>",
+                        status_code=response.status_code
+                    )
+                
+                # 获取wetty HTML内容
+                html_content = response.text
+                
+                # 修改HTML内容，使资源引用路径正确
+                # 替换相对路径为绝对路径
+                html_content = html_content.replace('href="/', 'href="http://127.0.0.1:3000/')
+                html_content = html_content.replace('src="/', 'src="http://127.0.0.1:3000/')
+                
+                # 用iframe包装内容
+                wrapped_content = f"""
+                <iframe src="http://127.0.0.1:3000" style="width:100%;height:100%;border:none;" 
+                        sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+                """
+                
+                return HTMLResponse(content=wrapped_content)
+                
+        except Exception as e:
+            logger.error(f"获取终端内容失败: {str(e)}")
+            return HTMLResponse(
+                content=f"<div>连接终端服务失败: {str(e)}</div>",
+                status_code=503
+            )

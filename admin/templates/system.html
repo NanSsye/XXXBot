@@ -42,6 +42,9 @@
         position: relative;
         overflow: hidden;
         margin-bottom: 1.5rem;
+        border-radius: 10px;
+        overflow: hidden;
+        transition: all 0.3s;
     }
     
     .stat-card::before {
@@ -60,6 +63,11 @@
     .stat-card:hover::before {
         opacity: 1;
         transform: scale(1);
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
     }
     
     .metric-grid {
@@ -122,7 +130,8 @@
     }
     
     .progress {
-        height: 6px;
+        height: 10px;
+        border-radius: 5px;
         margin-bottom: 1rem;
     }
     
@@ -150,6 +159,36 @@
     
     .col-12, .col-lg-6 {
         margin-bottom: 1.5rem;
+    }
+    
+    #terminal-container.fullscreen {
+        position: fixed;
+        top: 75px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+        height: calc(100vh - 75px) !important;
+    }
+    
+    /* 终端iframe样式 */
+    #terminal-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background-color: #000;
+    }
+    
+    /* 确保终端错误提示可见 */
+    .terminal-error {
+        color: #ff6b6b;
+        text-align: center;
+        padding: 20px;
+    }
+    
+    /* 避免iframe内容溢出 */
+    #terminal-container {
+        overflow: hidden;
     }
 </style>
 {% endblock %}
@@ -393,6 +432,64 @@
                         <div class="log-viewer" id="log-viewer">
                             <div class="text-center p-3"><i class="bi bi-hourglass-split me-2"></i>正在加载日志...</div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 终端区域 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">终端服务</h5>
+                    <div>
+                        <a href="/terminal" class="btn btn-sm btn-primary me-2">打开终端页面</a>
+                        <a href="http://localhost:3000" target="_blank" class="btn btn-sm btn-outline-primary">直接访问终端</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">终端服务状态检查与操作指南</h6>
+                        <hr>
+                        <ol>
+                            <li><strong>终端服务状态检查</strong>：在系统命令行中运行 <code>ps aux | grep wetty</code> 查看WeTTy服务是否运行</li>
+                            <li><strong>访问方式</strong>：
+                                <ul>
+                                    <li>方式一：点击上方的<strong>打开终端页面</strong>按钮，在管理后台中使用</li>
+                                    <li>方式二：点击上方的<strong>直接访问终端</strong>按钮，直接打开WeTTy服务</li>
+                                </ul>
+                            </li>
+                            <li><strong>如果终端不可访问</strong>，请尝试重启WeTTy服务：
+                                <div class="bg-dark text-light p-2 mt-1 rounded">
+                                    <code>pkill -f wetty && wetty --port 3000 --host 0.0.0.0 --allow-iframe --base / --command /bin/bash &</code>
+                                </div>
+                            </li>
+                            <li>如果重启后仍然无法访问，请检查端口3000是否已被占用：<code>netstat -tuln | grep 3000</code></li>
+                        </ol>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <span class="text-muted">WeTTy终端服务端口：</span>
+                            <span class="fw-bold">3000</span>
+                        </div>
+                        <div>
+                            <button id="check-terminal" class="btn btn-sm btn-outline-primary me-2">检查终端服务状态</button>
+                            <button id="restart-terminal" class="btn btn-sm btn-outline-warning">重启终端服务</button>
+                        </div>
+                    </div>
+                    <div id="terminal-status" class="mt-3 d-none">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                <span class="visually-hidden">正在检查...</span>
+                            </div>
+                            <span>正在检查终端服务状态...</span>
+                        </div>
+                    </div>
+                    <div id="terminal-log" class="mt-3 d-none">
+                        <h6 class="text-muted">终端服务诊断日志：</h6>
+                        <div class="border rounded bg-light p-2" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap;"></div>
                     </div>
                 </div>
             </div>
@@ -985,6 +1082,255 @@
         
         // 定期更新进度条
         setInterval(updateAllProgressBars, 30000);
+
+        // 终端全屏功能
+        document.getElementById('btn-fullscreen-terminal').addEventListener('click', function() {
+            const terminalContainer = document.getElementById('terminal-container');
+            if (terminalContainer.classList.contains('fullscreen')) {
+                // 退出全屏
+                terminalContainer.classList.remove('fullscreen');
+                terminalContainer.style.height = '500px';
+                this.innerHTML = '<i class="bi bi-fullscreen"></i>全屏';
+            } else {
+                // 进入全屏
+                terminalContainer.classList.add('fullscreen');
+                terminalContainer.style.height = 'calc(100vh - 150px)';
+                this.innerHTML = '<i class="bi bi-fullscreen-exit"></i>退出全屏';
+            }
+        });
+
+        // 监听iframe加载完成
+        document.getElementById('terminal-iframe').addEventListener('load', function() {
+            document.getElementById('terminal-loading').style.display = 'none';
+        });
+
+        // 终端服务检查
+        const checkTerminalButton = document.getElementById('check-terminal');
+        const restartTerminalButton = document.getElementById('restart-terminal');
+        const terminalStatus = document.getElementById('terminal-status');
+        const terminalLog = document.getElementById('terminal-log');
+        const terminalLogContent = terminalLog.querySelector('div');
+        
+        function appendLog(message) {
+            const timestamp = new Date().toTimeString().substring(0, 8);
+            terminalLogContent.innerHTML += `[${timestamp}] ${message}\n`;
+            terminalLogContent.scrollTop = terminalLogContent.scrollHeight;
+        }
+        
+        function showTerminalLog() {
+            terminalLog.classList.remove('d-none');
+            terminalLogContent.innerHTML = '';
+        }
+        
+        if (checkTerminalButton) {
+            checkTerminalButton.addEventListener('click', function() {
+                terminalStatus.classList.remove('d-none');
+                showTerminalLog();
+                appendLog('开始诊断终端服务...');
+                
+                terminalStatus.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                            <span class="visually-hidden">正在检查...</span>
+                        </div>
+                        <span>正在检查终端服务状态...</span>
+                    </div>
+                `;
+                
+                // 运行诊断工具
+                fetch('/api/terminal/diagnose')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            appendLog('终端服务诊断完成');
+                            
+                            if (data.status.running) {
+                                terminalStatus.innerHTML = `
+                                    <div class="alert alert-success mb-0">
+                                        <i class="bi bi-check-circle-fill me-2"></i>
+                                        终端服务运行正常，可以通过上方按钮访问
+                                    </div>
+                                `;
+                                appendLog('✅ 终端服务运行正常');
+                            } else if (data.status.port_used) {
+                                terminalStatus.innerHTML = `
+                                    <div class="alert alert-warning mb-0">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        端口3000已被占用，但可能不是WeTTy服务
+                                        <button id="force-restart" class="btn btn-sm btn-warning ms-2">强制重启服务</button>
+                                    </div>
+                                `;
+                                appendLog('⚠️ 端口3000已被占用，但可能不是WeTTy服务');
+                                
+                                // 添加强制重启按钮事件
+                                document.getElementById('force-restart').addEventListener('click', function() {
+                                    restartTerminal(true);
+                                });
+                            } else {
+                                terminalStatus.innerHTML = `
+                                    <div class="alert alert-danger mb-0">
+                                        <i class="bi bi-x-circle-fill me-2"></i>
+                                        终端服务未运行
+                                        <button id="start-terminal" class="btn btn-sm btn-primary ms-2">启动服务</button>
+                                    </div>
+                                `;
+                                appendLog('❌ 终端服务未运行');
+                                
+                                // 添加启动按钮事件
+                                document.getElementById('start-terminal').addEventListener('click', function() {
+                                    startTerminal();
+                                });
+                            }
+                            
+                            // 显示详细诊断信息
+                            data.logs.forEach(log => {
+                                appendLog(log);
+                            });
+                        } else {
+                            terminalStatus.innerHTML = `
+                                <div class="alert alert-danger mb-0">
+                                    <i class="bi bi-x-circle-fill me-2"></i>
+                                    诊断终端服务时出错: ${data.error}
+                                </div>
+                            `;
+                            appendLog(`错误: ${data.error}`);
+                        }
+                    })
+                    .catch(err => {
+                        terminalStatus.innerHTML = `
+                            <div class="alert alert-danger mb-0">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                诊断请求失败: ${err.message}
+                            </div>
+                        `;
+                        appendLog(`请求失败: ${err.message}`);
+                        console.error('终端服务诊断失败:', err);
+                    });
+            });
+        }
+        
+        // 重启终端服务
+        function restartTerminal(force = false) {
+            terminalStatus.classList.remove('d-none');
+            showTerminalLog();
+            appendLog('准备重启终端服务...');
+            
+            terminalStatus.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-warning me-2" role="status">
+                        <span class="visually-hidden">正在重启...</span>
+                    </div>
+                    <span>正在重启终端服务...</span>
+                </div>
+            `;
+            
+            // 发送重启请求
+            fetch('/api/terminal/restart', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ force: force })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        terminalStatus.innerHTML = `
+                            <div class="alert alert-success mb-0">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                终端服务重启成功
+                            </div>
+                        `;
+                        appendLog('✅ 终端服务重启成功');
+                        
+                        // 显示详细日志
+                        data.logs.forEach(log => {
+                            appendLog(log);
+                        });
+                    } else {
+                        terminalStatus.innerHTML = `
+                            <div class="alert alert-danger mb-0">
+                                <i class="bi bi-x-circle-fill me-2"></i>
+                                重启终端服务失败: ${data.error}
+                            </div>
+                        `;
+                        appendLog(`❌ 重启失败: ${data.error}`);
+                    }
+                })
+                .catch(err => {
+                    terminalStatus.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            重启请求失败: ${err.message}
+                        </div>
+                    `;
+                    appendLog(`请求失败: ${err.message}`);
+                    console.error('重启终端服务失败:', err);
+                });
+        }
+        
+        // 启动终端服务
+        function startTerminal() {
+            terminalStatus.classList.remove('d-none');
+            showTerminalLog();
+            appendLog('准备启动终端服务...');
+            
+            terminalStatus.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                        <span class="visually-hidden">正在启动...</span>
+                    </div>
+                    <span>正在启动终端服务...</span>
+                </div>
+            `;
+            
+            // 发送启动请求
+            fetch('/api/terminal/start', {
+                method: 'POST'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        terminalStatus.innerHTML = `
+                            <div class="alert alert-success mb-0">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                终端服务启动成功
+                            </div>
+                        `;
+                        appendLog('✅ 终端服务启动成功');
+                        
+                        // 显示详细日志
+                        data.logs.forEach(log => {
+                            appendLog(log);
+                        });
+                    } else {
+                        terminalStatus.innerHTML = `
+                            <div class="alert alert-danger mb-0">
+                                <i class="bi bi-x-circle-fill me-2"></i>
+                                启动终端服务失败: ${data.error}
+                            </div>
+                        `;
+                        appendLog(`❌ 启动失败: ${data.error}`);
+                    }
+                })
+                .catch(err => {
+                    terminalStatus.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            启动请求失败: ${err.message}
+                        </div>
+                    `;
+                    appendLog(`请求失败: ${err.message}`);
+                    console.error('启动终端服务失败:', err);
+                });
+        }
+        
+        // 重启按钮事件
+        if (restartTerminalButton) {
+            restartTerminalButton.addEventListener('click', function() {
+                restartTerminal(false);
+            });
+        }
     });
 </script>
 {% endblock %} 
