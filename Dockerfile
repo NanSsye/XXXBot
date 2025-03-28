@@ -24,8 +24,8 @@ RUN apt-get update && apt-get install -y \
     nodejs \
     npm
 
-# 安装 wetty
-RUN npm install -g wetty
+# 安装 wetty 2.5.0版本
+RUN npm install -g wetty@2.5.0
 
 # 安装 procps 工具
 RUN apt-get update && apt-get install -y procps
