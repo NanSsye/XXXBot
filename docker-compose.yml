@@ -1,6 +1,6 @@
 services:
   xxxbot:
-    image: nansy/xxxbot:latest
+    image: nanssye/xxxbot:latest
     container_name: XXXBot
     restart: unless-stopped
     ports:
@@ -10,9 +10,8 @@ services:
       - xxxbot:/app
       - redis_data:/var/lib/redis
     environment:
-      - ADMIN_USERNAME=your_username
-      - ADMIN_PASSWORD=your_secure_password
-    build: .
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
 
 volumes:
   redis_data:

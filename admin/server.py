@@ -8,6 +8,8 @@ import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Union, Set
+import sqlite3
+import glob
 
 import uvicorn
 from fastapi import FastAPI, Request, Response, Depends, HTTPException, WebSocket, WebSocketDisconnect, Body, File, Form, UploadFile
@@ -27,7 +29,6 @@ import psutil
 import platform
 import socket
 import re
-import glob
 import subprocess
 import shutil
 import inspect
@@ -589,10 +590,13 @@ def init_app():
     templates_dir = os.path.join(current_dir, "templates")
     templates = Jinja2Templates(directory=templates_dir)
     
+    logger.info("初始化FastAPI应用")
+    
     # 配置静态文件目录
     static_dir = os.path.join(current_dir, "static")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.mount("/admin/static", StaticFiles(directory=static_dir), name="admin.static")
+    logger.info("静态文件目录配置完成")
     
     # 添加中间件
     app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -603,9 +607,18 @@ def init_app():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    logger.info("中间件添加完成")
     
     # 加载路由
+    logger.info("开始加载路由...")
     setup_routes()
+    logger.info("路由加载完成")
+    
+    # 日志记录所有已注册的路由
+    logger.info("已注册的路由列表:")
+    for route in app.routes:
+        if hasattr(route, 'path'):
+            logger.info(f"路由: {route.path} [{','.join(route.methods) if hasattr(route, 'methods') else ''}]")
     
     logger.info(f"管理后台初始化完成，将在 {config['host']}:{config['port']} 上启动")
 
@@ -619,6 +632,113 @@ def setup_routes():
                 "request": request
             }
         )
+    
+    # 定时提醒页面路由 - 移动到这里与其他页面路由一起
+    @app.get("/reminders", response_class=HTMLResponse)
+    async def reminders_page(request: Request):
+        """定时提醒页面"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            logger.warning("未认证用户尝试访问定时提醒页面")
+            return RedirectResponse(url="/login?next=/reminders", status_code=302)
+        
+        logger.info(f"用户 {username} 访问定时提醒页面")
+        
+        # 确保模板路径正确
+        try:
+            template_path = "reminders.html"
+            logger.debug(f"尝试加载模板: {template_path}")
+            
+            return templates.TemplateResponse(
+                template_path, 
+                {
+                    "request": request,
+                    "username": username,
+                    "title": "定时提醒",
+                    "current_page": "reminders"
+                }
+            )
+        except Exception as e:
+            logger.exception(f"加载定时提醒页面模板失败: {str(e)}")
+            return HTMLResponse(f"<h1>加载定时提醒页面失败</h1><p>错误: {str(e)}</p>")
+    
+    # 将check_auth函数定义移到这里，在导入reminder_api之前
+    async def check_auth(request: Request):
+        """检查用户认证状态"""
+        try:
+            token = request.headers.get('Authorization')
+            if not token:
+                # 尝试从cookie中获取token
+                token = request.cookies.get('token')
+                
+            if not token:
+                raise HTTPException(status_code=401, detail="未登录或登录已过期")
+                
+            # 这里可以添加token验证的逻辑
+            # 例如验证token的有效性，检查是否过期等
+            # 如果验证失败，抛出HTTPException(status_code=401)
+            
+            return True
+        except Exception as e:
+            logger.error(f"认证检查失败: {str(e)}")
+            raise HTTPException(status_code=401, detail="认证失败")
+    
+    # 导入并注册提醒相关路由
+    try:
+        import sys
+        import os
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.append(current_dir)
+        
+        # 使用绝对导入
+        from reminder_api import register_reminder_routes
+        
+        # 先定义check_auth函数
+        async def check_auth(request: Request):
+            """检查用户是否已认证"""
+            try:
+                # 从Cookie中获取会话数据
+                session_cookie = request.cookies.get("session")
+                if not session_cookie:
+                    logger.debug("未找到会话Cookie")
+                    return None
+                
+                # 调试日志
+                logger.debug(f"获取到会话Cookie: {session_cookie[:15]}...")
+                
+                # 解码会话数据
+                try:
+                    serializer = URLSafeSerializer(config["secret_key"], "session")
+                    session_data = serializer.loads(session_cookie)
+                    
+                    # 输出会话数据，辅助调试
+                    logger.debug(f"解析会话数据成功: {session_data}")
+                    
+                    # 检查会话是否已过期
+                    expires = session_data.get("expires", 0)
+                    if expires < time.time():
+                        logger.debug(f"会话已过期: 当前时间 {time.time()}, 过期时间 {expires}")
+                        return None
+                    
+                    # 会话有效
+                    logger.debug(f"会话有效，用户: {session_data.get('username')}")
+                    return session_data.get("username")
+                except Exception as e:
+                    logger.error(f"解析会话数据失败: {str(e)}")
+                    return None
+            except Exception as e:
+                logger.error(f"检查认证失败: {str(e)}")
+                return None
+        
+        # 然后注册路由，传入check_auth函数
+        register_reminder_routes(app, check_auth)
+        logger.info("提醒API路由注册成功")
+    except Exception as e:
+        logger.error(f"注册提醒API路由失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
     
     # API: 重启容器
     @app.post("/api/system/restart", response_class=JSONResponse)
@@ -5294,3 +5414,262 @@ def get_bot(wxid):
                 content=f"<div>连接终端服务失败: {str(e)}</div>",
                 status_code=503
             )
+
+    # 添加提醒相关的API
+    def get_reminder_file_path(wxid: str) -> str:
+        """获取用户提醒数据文件路径"""
+        reminders_dir = os.path.join(current_dir, "reminders")
+        if not os.path.exists(reminders_dir):
+            os.makedirs(reminders_dir, exist_ok=True)
+        
+        return os.path.join(reminders_dir, f"{wxid}.json")
+
+    @app.get("/api/reminders/{wxid}", response_class=JSONResponse)
+    async def api_get_reminders(wxid: str, request: Request):
+        """获取用户的提醒列表"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            logger.error("获取提醒列表失败：未认证")
+            return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+        
+        try:
+            logger.info(f"用户 {username} 请求获取 {wxid} 的提醒列表")
+            
+            # 读取提醒数据文件
+            reminders_file = get_reminder_file_path(wxid)
+            logger.info(f"尝试从 {reminders_file} 加载提醒数据")
+            
+            if not os.path.exists(reminders_file):
+                logger.warning(f"提醒文件不存在: {reminders_file}")
+                return JSONResponse(content={"success": True, "reminders": []})
+            
+            with open(reminders_file, "r", encoding="utf-8") as f:
+                try:
+                    reminders = json.load(f)
+                    logger.info(f"从文件成功加载提醒，条目数: {len(reminders)}")
+                    return JSONResponse(content={"success": True, "reminders": reminders})
+                except json.JSONDecodeError as e:
+                    logger.error(f"解析 {wxid} 的提醒文件失败: {str(e)}")
+                    return JSONResponse(content={"success": False, "error": f"解析提醒数据失败: {str(e)}"})
+        
+        except Exception as e:
+            logger.exception(f"获取用户 {wxid} 的提醒列表失败: {str(e)}")
+            return JSONResponse(content={"success": False, "error": f"获取提醒列表失败: {str(e)}"})
+
+    @app.get("/api/reminders/{wxid}/{id}", response_class=JSONResponse)
+    async def api_get_reminder(wxid: str, id: int, request: Request):
+        """获取特定提醒详情"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            logger.error("获取提醒详情失败：未认证")
+            return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+        
+        try:
+            logger.info(f"用户 {username} 请求获取 {wxid} 的提醒 {id} 详情")
+            
+            # 读取提醒数据文件
+            reminders_file = get_reminder_file_path(wxid)
+            
+            if not os.path.exists(reminders_file):
+                logger.warning(f"提醒文件不存在: {reminders_file}")
+                return JSONResponse(content={"success": False, "error": "未找到提醒记录"})
+            
+            with open(reminders_file, "r", encoding="utf-8") as f:
+                try:
+                    reminders = json.load(f)
+                    
+                    # 查找指定ID的提醒
+                    for reminder in reminders:
+                        if reminder.get("id") == id:
+                            logger.info(f"找到提醒 {id} 的详情")
+                            return JSONResponse(content={"success": True, "reminder": reminder})
+                    
+                    logger.warning(f"未找到ID为 {id} 的提醒")
+                    return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
+                    
+                except json.JSONDecodeError as e:
+                    logger.error(f"解析 {wxid} 的提醒文件失败: {str(e)}")
+                    return JSONResponse(content={"success": False, "error": f"解析提醒数据失败: {str(e)}"})
+        
+        except Exception as e:
+            logger.exception(f"获取用户 {wxid} 的提醒 {id} 详情失败: {str(e)}")
+            return JSONResponse(content={"success": False, "error": f"获取提醒详情失败: {str(e)}"})
+
+    #@app.post("/api/reminders/{wxid}", response_class=JSONResponse)
+    #async def api_add_reminder(wxid: str, request: Request):
+    #    """添加新提醒"""
+    #    # 检查认证状态
+    #    username = await check_auth(request)
+    #   if not username:
+    #        logger.error("添加提醒失败：未认证")
+    #        return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+        
+    #    try:
+    #        data = await request.json()
+    #        content = data.get("content")
+    #        reminder_type = data.get("reminder_type")
+    #        reminder_time = data.get("reminder_time")
+    #        chat_id = data.get("chat_id")
+            
+            logger.info(f"用户 {username} 为 {wxid} 添加提醒: {content}, 类型: {reminder_type}, 时间: {reminder_time}, 聊天ID: {chat_id}")
+            
+            if not all([content, reminder_type, reminder_time, chat_id]):
+                logger.warning(f"添加提醒缺少必要参数: content={content}, type={reminder_type}, time={reminder_time}, chat_id={chat_id}")
+                return JSONResponse(content={"success": False, "error": "缺少必要参数"})
+            
+            # 读取现有提醒
+            reminders_file = get_reminder_file_path(wxid)
+            reminders = []
+            
+            if os.path.exists(reminders_file):
+                try:
+                    with open(reminders_file, "r", encoding="utf-8") as f:
+                        reminders = json.load(f)
+                except json.JSONDecodeError:
+                    logger.warning(f"提醒文件 {reminders_file} 格式错误，将创建新文件")
+                    reminders = []
+            
+            # 生成新的提醒ID
+            new_id = 1
+            if reminders:
+                new_id = max(reminder.get("id", 0) for reminder in reminders) + 1
+            
+            # 创建新提醒
+            new_reminder = {
+                "id": new_id,
+                "wxid": wxid,
+                "content": content,
+                "reminder_type": reminder_type,
+                "reminder_time": reminder_time,
+                "chat_id": chat_id,
+                "is_done": 0
+            }
+            
+            # 添加到提醒列表
+            reminders.append(new_reminder)
+            
+            # 保存提醒文件
+            with open(reminders_file, "w", encoding="utf-8") as f:
+                json.dump(reminders, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"成功为用户 {wxid} 添加提醒，ID: {new_id}")
+            return JSONResponse(content={"success": True, "id": new_id})
+        
+        except Exception as e:
+            logger.exception(f"添加提醒失败: {str(e)}")
+            return JSONResponse(content={"success": False, "error": f"添加提醒失败: {str(e)}"})
+
+    @app.put("/api/reminders/{wxid}/{id}", response_class=JSONResponse)
+    async def api_update_reminder(wxid: str, id: int, request: Request):
+        """更新提醒"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            logger.error("更新提醒失败：未认证")
+            return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+        
+        try:
+            data = await request.json()
+            content = data.get("content")
+            reminder_type = data.get("reminder_type")
+            reminder_time = data.get("reminder_time")
+            chat_id = data.get("chat_id")
+            
+            logger.info(f"用户 {username} 更新 {wxid} 的提醒 {id}: {content}, 类型: {reminder_type}, 时间: {reminder_time}, 聊天ID: {chat_id}")
+            
+            if not all([content, reminder_type, reminder_time, chat_id]):
+                logger.warning(f"更新提醒缺少必要参数: content={content}, type={reminder_type}, time={reminder_time}, chat_id={chat_id}")
+                return JSONResponse(content={"success": False, "error": "缺少必要参数"})
+            
+            # 读取现有提醒
+            reminders_file = get_reminder_file_path(wxid)
+            
+            if not os.path.exists(reminders_file):
+                logger.warning(f"提醒文件不存在: {reminders_file}")
+                return JSONResponse(content={"success": False, "error": "未找到提醒记录"})
+            
+            try:
+                with open(reminders_file, "r", encoding="utf-8") as f:
+                    reminders = json.load(f)
+            except json.JSONDecodeError:
+                logger.error(f"提醒文件 {reminders_file} 格式错误")
+                return JSONResponse(content={"success": False, "error": "提醒文件格式错误"})
+            
+            # 查找并更新提醒
+            reminder_updated = False
+            for i, reminder in enumerate(reminders):
+                if reminder.get("id") == id:
+                    reminders[i] = {
+                        "id": id,
+                        "wxid": wxid,
+                        "content": content,
+                        "reminder_type": reminder_type,
+                        "reminder_time": reminder_time,
+                        "chat_id": chat_id,
+                        "is_done": reminder.get("is_done", 0)
+                    }
+                    reminder_updated = True
+                    break
+            
+            if not reminder_updated:
+                logger.warning(f"未找到ID为 {id} 的提醒")
+                return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
+            
+            # 保存更新后的提醒文件
+            with open(reminders_file, "w", encoding="utf-8") as f:
+                json.dump(reminders, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"成功更新用户 {wxid} 的提醒 {id}")
+            return JSONResponse(content={"success": True})
+        
+        except Exception as e:
+            logger.exception(f"更新提醒 {id} 失败: {str(e)}")
+            return JSONResponse(content={"success": False, "error": f"更新提醒失败: {str(e)}"})
+
+    @app.delete("/api/reminders/{wxid}/{id}", response_class=JSONResponse)
+    async def api_delete_reminder(wxid: str, id: int, request: Request):
+        """删除提醒"""
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            logger.error("删除提醒失败：未认证")
+            return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+        
+        try:
+            logger.info(f"用户 {username} 删除 {wxid} 的提醒 {id}")
+            
+            # 读取现有提醒
+            reminders_file = get_reminder_file_path(wxid)
+            
+            if not os.path.exists(reminders_file):
+                logger.warning(f"提醒文件不存在: {reminders_file}")
+                return JSONResponse(content={"success": False, "error": "未找到提醒记录"})
+            
+            try:
+                with open(reminders_file, "r", encoding="utf-8") as f:
+                    reminders = json.load(f)
+            except json.JSONDecodeError:
+                logger.error(f"提醒文件 {reminders_file} 格式错误")
+                return JSONResponse(content={"success": False, "error": "提醒文件格式错误"})
+            
+            # 查找并删除提醒
+            original_length = len(reminders)
+            reminders = [r for r in reminders if r.get("id") != id]
+            
+            if len(reminders) == original_length:
+                logger.warning(f"未找到ID为 {id} 的提醒")
+                return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
+            
+            # 保存更新后的提醒文件
+            with open(reminders_file, "w", encoding="utf-8") as f:
+                json.dump(reminders, f, ensure_ascii=False, indent=2)
+            
+            logger.info(f"成功删除用户 {wxid} 的提醒 {id}")
+            return JSONResponse(content={"success": True})
+        
+        except Exception as e:
+            logger.exception(f"删除提醒 {id} 失败: {str(e)}")
+            return JSONResponse(content={"success": False, "error": f"删除提醒失败: {str(e)}"})
+
