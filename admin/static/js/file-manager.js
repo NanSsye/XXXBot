@@ -864,8 +864,9 @@ function updateBreadcrumb(path) {
     // 添加根目录
     const rootLi = document.createElement('li');
     rootLi.className = 'breadcrumb-item';
-    rootLi.innerHTML = '<a href="#">根目录</a>';
-    rootLi.addEventListener('click', (e) => {
+    rootLi.innerHTML = '<a href="#" data-path="/">根目录</a>';
+    const rootLink = rootLi.querySelector('a');
+    rootLink.addEventListener('click', (e) => {
         e.preventDefault();
         loadFiles('/');
     });
@@ -892,10 +893,13 @@ function updateBreadcrumb(path) {
             li.classList.add('active');
             li.textContent = part;
         } else {
-            li.innerHTML = `<a href="#">${part}</a>`;
-            li.addEventListener('click', (e) => {
+            const targetPath = currentPath; // 保存当前路径供点击回调使用
+            li.innerHTML = `<a href="#" data-path="${targetPath}">${part}</a>`;
+            const link = li.querySelector('a');
+            link.addEventListener('click', (e) => {
                 e.preventDefault();
-                loadFiles(currentPath);
+                // 导航到对应路径
+                loadFiles(targetPath);
             });
         }
         

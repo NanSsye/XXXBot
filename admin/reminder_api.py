@@ -341,14 +341,88 @@ def register_reminder_routes(app: FastAPI, check_auth=None):
         try:
             logger.info(f"用户 {username} 获取 {wxid} 的提醒列表")
             
-            # 获取提醒文件路径
-            reminders_file = get_reminder_file_path(wxid)
-            logger.info(f"尝试从 {reminders_file} 加载提醒数据")
+            # 判断是否是群聊
+            is_chatroom = "@chatroom" in wxid
             
-            # 从数据库加载提醒
-            reminders = load_reminders_from_db(reminders_file, wxid)
-            logger.info(f"从数据库成功加载提醒，条目数: {len(reminders)}")
-            return JSONResponse(content={"success": True, "reminders": reminders})
+            if is_chatroom:
+                logger.info(f"查询群聊 {wxid} 的提醒列表")
+                
+                # 获取reminder_data目录
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                root_dir = os.path.dirname(current_dir)
+                reminders_dir = os.path.join(root_dir, "reminder_data")
+                
+                if not os.path.exists(reminders_dir):
+                    logger.warning(f"提醒数据目录不存在: {reminders_dir}")
+                    return JSONResponse(content={"success": True, "reminders": []})
+                
+                # 所有与该群聊相关的提醒
+                all_group_reminders = []
+                
+                # 获取目录中的所有db文件
+                db_files = [f for f in os.listdir(reminders_dir) if f.startswith("user_") and f.endswith(".db")]
+                logger.info(f"找到 {len(db_files)} 个提醒数据库文件")
+                
+                for db_file in db_files:
+                    # 从文件名中提取wxid
+                    owner_wxid = db_file[5:-3]  # 移除"user_"前缀和".db"后缀
+                    
+                    # 获取完整文件路径
+                    db_path = os.path.join(reminders_dir, db_file)
+                    
+                    try:
+                        # 检查数据库是否存在并初始化
+                        if not os.path.exists(db_path):
+                            continue
+                            
+                        # 尝试连接数据库
+                        conn = sqlite3.connect(db_path)
+                        conn.row_factory = sqlite3.Row
+                        cursor = conn.cursor()
+                        
+                        # 查询该群聊的提醒 (chat_id等于群聊ID的记录)
+                        cursor.execute("""
+                        SELECT * FROM reminders 
+                        WHERE chat_id = ? AND is_done = 0
+                        """, (wxid,))
+                        
+                        results = cursor.fetchall()
+                        conn.close()
+                        
+                        # 添加到总列表
+                        for row in results:
+                            reminder = {
+                                "id": row["id"],
+                                "wxid": row["wxid"],
+                                "content": row["content"],
+                                "reminder_type": row["reminder_type"],
+                                "reminder_time": row["reminder_time"],
+                                "chat_id": row["chat_id"],
+                                "is_done": row["is_done"],
+                                "owner_id": owner_wxid  # 额外记录真正设置提醒的用户ID
+                            }
+                            all_group_reminders.append(reminder)
+                            
+                    except Exception as e:
+                        logger.error(f"查询数据库 {db_file} 时出错: {str(e)}")
+                        continue
+                
+                logger.info(f"为群聊 {wxid} 找到 {len(all_group_reminders)} 条提醒")
+                return JSONResponse(content={"success": True, "reminders": all_group_reminders})
+            else:
+                # 普通用户提醒处理
+                reminders_file = get_reminder_file_path(wxid)
+                logger.info(f"尝试从 {reminders_file} 加载提醒数据")
+                
+                # 从数据库加载提醒
+                reminders = load_reminders_from_db(reminders_file, wxid)
+                
+                # 添加所有者ID
+                for reminder in reminders:
+                    reminder["owner_id"] = wxid
+                
+                logger.info(f"从数据库成功加载提醒，条目数: {len(reminders)}")
+                return JSONResponse(content={"success": True, "reminders": reminders})
             
         except Exception as e:
             logger.exception(f"获取用户 {wxid} 的提醒列表失败: {str(e)}")
@@ -451,20 +525,38 @@ def register_reminder_routes(app: FastAPI, check_auth=None):
             reminder_type = data.get("reminder_type")
             reminder_time = data.get("reminder_time")
             chat_id = data.get("chat_id")
+            owner_id = data.get("owner_id")  # 获取提醒的真正所有者ID
             
-            logger.info(f"用户 {username} 更新 {wxid} 的提醒 {id}: {content}, 类型: {reminder_type}, 时间: {reminder_time}, 聊天ID: {chat_id}")
+            logger.info(f"用户 {username} 请求更新提醒 ID={id}, wxid={wxid}, owner_id={owner_id}")
             
             if not all([content, reminder_type, reminder_time, chat_id]):
-                logger.warning(f"更新提醒缺少必要参数: content={content}, type={reminder_type}, time={reminder_time}, chat_id={chat_id}")
+                logger.warning(f"更新提醒缺少必要参数")
                 return JSONResponse(content={"success": False, "error": "缺少必要参数"})
             
-            # 获取提醒文件路径
-            reminders_file = get_reminder_file_path(wxid)
+            # 判断是否是群聊提醒
+            is_chatroom = "@chatroom" in chat_id
+            
+            # 对于群聊提醒，尝试找到真正的所有者
+            if is_chatroom and not owner_id:
+                # 查找提醒以获取真正的所有者
+                result = find_reminder_in_all_dbs(id, chat_id)
+                if result:
+                    owner_id, _ = result
+                    logger.info(f"找到提醒的真正所有者: {owner_id}")
+                else:
+                    logger.warning(f"未找到ID为 {id} 的群聊提醒，无法确定所有者")
+                    return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
+            
+            # 使用所有者ID或默认为请求中的wxid
+            target_wxid = owner_id if owner_id else wxid
+            
+            # 获取正确的数据库文件
+            reminders_file = get_reminder_file_path(target_wxid)
             
             # 创建更新后的提醒对象
             updated_reminder = {
                 "id": id,
-                "wxid": wxid,
+                "wxid": target_wxid,
                 "content": content,
                 "reminder_type": reminder_type,
                 "reminder_time": reminder_time,
@@ -474,14 +566,14 @@ def register_reminder_routes(app: FastAPI, check_auth=None):
             
             # 更新数据库中的提醒
             if update_reminder_in_db(reminders_file, updated_reminder):
-                logger.info(f"成功更新用户 {wxid} 的提醒 {id}")
+                logger.info(f"成功更新提醒 ID={id}")
                 return JSONResponse(content={"success": True})
             else:
                 logger.warning(f"未找到ID为 {id} 的提醒，无法更新")
                 return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
             
         except Exception as e:
-            logger.exception(f"更新提醒 {id} 失败: {str(e)}")
+            logger.exception(f"更新提醒失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"更新提醒失败: {str(e)}"})
 
     @app.delete("/api/reminders/{wxid}/{id}", response_class=JSONResponse)
@@ -494,19 +586,121 @@ def register_reminder_routes(app: FastAPI, check_auth=None):
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
         
         try:
-            logger.info(f"用户 {username} 删除 {wxid} 的提醒 {id}")
+            logger.info(f"用户 {username} 请求删除提醒 ID={id}, wxid={wxid}")
             
-            # 获取提醒文件路径
-            reminders_file = get_reminder_file_path(wxid)
+            # 判断是否是群聊ID
+            is_chatroom = "@chatroom" in wxid
             
-            # 从数据库删除提醒
-            if delete_reminder_from_db(reminders_file, wxid, id):
-                logger.info(f"成功删除用户 {wxid} 的提醒 {id}")
-                return JSONResponse(content={"success": True})
+            # 对于群聊的提醒，需要在所有数据库中查找
+            if is_chatroom:
+                logger.info(f"这是群聊提醒，在所有数据库中查找...")
+                result = find_reminder_in_all_dbs(id, wxid)
+                
+                if result:
+                    owner_wxid, reminder = result
+                    logger.info(f"找到提醒，所有者是 {owner_wxid}，在数据库中删除")
+                    
+                    # 获取所有者的数据库文件
+                    owner_db_file = get_reminder_file_path(owner_wxid)
+                    
+                    # 删除提醒
+                    if delete_reminder_from_db(owner_db_file, owner_wxid, id):
+                        logger.info(f"成功删除群聊 {wxid} 中ID为 {id} 的提醒")
+                        return JSONResponse(content={"success": True})
+                    else:
+                        logger.error(f"无法删除群聊 {wxid} 中ID为 {id} 的提醒")
+                        return JSONResponse(content={"success": False, "error": "删除提醒失败"})
+                else:
+                    logger.warning(f"未在任何数据库中找到群聊 {wxid} 的提醒 ID={id}")
+                    return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
             else:
-                logger.warning(f"未找到ID为 {id} 的提醒，无法删除")
-                return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
-            
+                # 对于个人提醒，直接使用个人数据库
+                reminders_file = get_reminder_file_path(wxid)
+                logger.info(f"尝试从 {reminders_file} 删除提醒 ID={id}")
+                
+                # 从数据库删除提醒
+                if delete_reminder_from_db(reminders_file, wxid, id):
+                    logger.info(f"成功删除用户 {wxid} 的提醒 ID={id}")
+                    return JSONResponse(content={"success": True})
+                else:
+                    logger.warning(f"未找到ID为 {id} 的提醒，无法删除")
+                    return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
+                
         except Exception as e:
-            logger.exception(f"删除提醒 {id} 失败: {str(e)}")
+            logger.exception(f"删除提醒失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"删除提醒失败: {str(e)}"})
+
+def find_reminder_in_all_dbs(reminder_id, target_chat_id=None):
+    """在所有数据库中查找特定ID的提醒
+    
+    Args:
+        reminder_id: 要查找的提醒ID
+        target_chat_id: 可选，目标聊天ID
+        
+    Returns:
+        (wxid, reminder) 元组，如果找到；None 如果未找到
+    """
+    try:
+        # 获取reminder_data目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        root_dir = os.path.dirname(current_dir)
+        reminders_dir = os.path.join(root_dir, "reminder_data")
+        
+        if not os.path.exists(reminders_dir):
+            logger.warning(f"提醒数据目录不存在: {reminders_dir}")
+            return None
+        
+        # 获取目录中的所有db文件
+        db_files = [f for f in os.listdir(reminders_dir) if f.startswith("user_") and f.endswith(".db")]
+        
+        logger.info(f"在 {len(db_files)} 个提醒数据库文件中查找ID为 {reminder_id} 的提醒")
+        
+        for db_file in db_files:
+            # 从文件名中提取wxid
+            wxid = db_file[5:-3]  # 移除"user_"前缀和".db"后缀
+            
+            # 获取完整文件路径
+            db_path = os.path.join(reminders_dir, db_file)
+            
+            try:
+                # 连接到数据库
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                # 查询条件
+                query = "SELECT * FROM reminders WHERE id = ?"
+                params = [reminder_id]
+                
+                # 如果指定了聊天ID，添加到查询条件
+                if target_chat_id:
+                    query += " AND chat_id = ?"
+                    params.append(target_chat_id)
+                
+                # 执行查询
+                cursor.execute(query, params)
+                result = cursor.fetchone()
+                conn.close()
+                
+                if result:
+                    logger.info(f"在数据库 {db_file} 中找到ID为 {reminder_id} 的提醒")
+                    reminder = {
+                        "id": result["id"],
+                        "wxid": result["wxid"],
+                        "content": result["content"],
+                        "reminder_type": result["reminder_type"],
+                        "reminder_time": result["reminder_time"],
+                        "chat_id": result["chat_id"],
+                        "is_done": result["is_done"],
+                        "owner_id": wxid  # 记录真正的所有者ID
+                    }
+                    return (wxid, reminder)
+            except Exception as e:
+                logger.error(f"查询数据库 {db_file} 时出错: {str(e)}")
+                continue
+        
+        logger.warning(f"在所有数据库中未找到ID为 {reminder_id} 的提醒")
+        return None
+    except Exception as e:
+        logger.error(f"在所有数据库中查找提醒时出错: {str(e)}")
+        return None

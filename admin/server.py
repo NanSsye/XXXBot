@@ -1391,6 +1391,33 @@ except:
             logger.error(f"获取插件配置失败: {str(e)}")
             return {"success": False, "error": str(e)}
 
+    # API: 获取插件配置文件路径
+    @app.get("/api/plugin_config_file", response_class=JSONResponse)
+    async def api_get_plugin_config_file(plugin_id: str, request: Request):
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+        
+        try:
+            # 查找配置文件路径
+            config_path = find_plugin_config_path(plugin_id)
+            if not config_path:
+                # 如果配置文件不存在，返回默认位置
+                # 如插件尚未创建配置文件，返回它应该创建的位置
+                config_path = os.path.join("plugins", plugin_id, "config.toml")
+                
+            # 转换为相对路径，以便在文件管理器中打开
+            relative_path = os.path.normpath(config_path)
+            
+            return {
+                "success": True,
+                "config_file": relative_path
+            }
+        except Exception as e:
+            logger.error(f"获取插件配置文件路径失败: {str(e)}")
+            return {"success": False, "error": str(e)}
+
     # API: 保存插件配置
     @app.post("/api/save_plugin_config", response_class=JSONResponse)
     async def api_save_plugin_config(request: Request):

@@ -131,10 +131,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 配置保存按钮点击事件
     document.getElementById('plugin-config-save').addEventListener('click', function() {
-        const pluginId = this.getAttribute('data-plugin-id');
-        if (pluginId) {
-            savePluginConfig(pluginId);
-        }
+        // 直接调用保存函数，不依赖于pluginId属性
+        savePluginConfig();
     });
     
     // 监听模态框关闭事件
@@ -269,40 +267,152 @@ function renderPluginList(pluginsList) {
         return;
     }
     
-    let html = '';
+    // 清空容器，保留plugin-grid类以使用CSS网格布局
+    pluginList.innerHTML = '';
     
+    // 为每个插件创建卡片并添加到网格布局中
     pluginsList.forEach(plugin => {
         const statusClass = plugin.enabled ? 'success' : 'secondary';
         const statusText = plugin.enabled ? '已启用' : '已禁用';
         
-        html += `
-            <div class="plugin-card card ${plugin.enabled ? '' : 'disabled'}">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="card-title mb-0">${plugin.name}</h5>
-                        <span class="badge bg-${statusClass}">${statusText}</span>
+        // 根据插件名生成稳定的渐变色
+        const colors = [
+            ['#1abc9c', '#16a085'], // 绿松石
+            ['#3498db', '#2980b9'], // 蓝色
+            ['#9b59b6', '#8e44ad'], // 紫色
+            ['#e74c3c', '#c0392b'], // 红色
+            ['#f1c40f', '#f39c12'], // 黄色
+            ['#2ecc71', '#27ae60']  // 绿色
+        ];
+        const colorIndex = Math.abs(hashCode(plugin.name) % colors.length);
+        const gradientColors = colors[colorIndex];
+        
+        // 创建卡片元素
+        const cardElement = document.createElement('div');
+        cardElement.className = 'card h-100 shadow border-0 rounded-4 overflow-hidden';
+        if (!plugin.enabled) {
+            cardElement.classList.add('disabled');
+        }
+        
+        // 生成卡片HTML
+        cardElement.innerHTML = `
+            <div class="card-header p-3 bg-gradient-light border-0" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
+                <div class="d-flex align-items-center">
+                    <div class="plugin-icon rounded-circle shadow-sm" style="background: linear-gradient(135deg, ${gradientColors[0]}, ${gradientColors[1]});">
+                        <i class="bi bi-puzzle"></i>
                     </div>
-                    <p class="card-text">${plugin.description || '暂无描述'}</p>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-muted small">
-                            ${plugin.author || '未知作者'} | v${plugin.version || '1.0.0'}
-                        </div>
-                        <div class="plugin-actions">
-                            <button class="btn btn-sm btn-outline-primary btn-config" data-plugin-id="${plugin.id}" ${!plugin.enabled ? 'disabled' : ''}>
-                                <i class="bi bi-gear-fill me-1"></i>配置
-                            </button>
-                            <div class="form-check form-switch ms-2">
-                                <input class="form-check-input plugin-toggle" type="checkbox" id="toggle-${plugin.id}" ${plugin.enabled ? 'checked' : ''} data-plugin-id="${plugin.id}">
-                                <label class="form-check-label" for="toggle-${plugin.id}"></label>
-                            </div>
+                    <div class="ms-3">
+                        <h5 class="card-title mb-0 fw-bold">${plugin.name}</h5>
+                        <div class="text-muted small">v${plugin.version || '1.0.0'}</div>
+                    </div>
+                    <span class="badge bg-${statusClass} ms-auto">${statusText}</span>
+                </div>
+            </div>
+            <div class="card-body p-3 d-flex flex-column">
+                <p class="card-text text-truncate-2" title="${plugin.description}">${plugin.description || '暂无描述'}</p>
+                <div class="d-flex justify-content-between align-items-center mt-auto pt-3">
+                    <div class="text-muted small">
+                        <i class="bi bi-person me-1"></i>${plugin.author || '未知作者'}
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-primary rounded-pill btn-config me-2" data-plugin-id="${plugin.id}" ${!plugin.enabled ? 'disabled' : ''}>
+                            <i class="bi bi-gear-fill me-1"></i>配置
+                        </button>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input plugin-toggle" type="checkbox" id="toggle-${plugin.id}" ${plugin.enabled ? 'checked' : ''} data-plugin-id="${plugin.id}">
+                            <label class="form-check-label" for="toggle-${plugin.id}"></label>
                         </div>
                     </div>
                 </div>
             </div>
         `;
+        
+        // 直接添加到插件列表容器（使用grid布局）
+        pluginList.appendChild(cardElement);
     });
     
-    pluginList.innerHTML = html;
+    // 添加CSS样式
+    if (!document.querySelector('#plugin-list-styles')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'plugin-list-styles';
+        styleEl.textContent = `
+            #plugin-list {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 1.5rem;
+                width: 100%;
+            }
+            .text-truncate-2 {
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-height: 3em;
+            }
+            #plugin-list .plugin-icon {
+                width: 45px;
+                height: 45px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-size: 1.2rem;
+                flex-shrink: 0;
+                border-radius: 50%;
+                overflow: hidden;
+                box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            }
+            #plugin-list .card {
+                height: 100%;
+                transition: transform 0.3s, box-shadow 0.3s;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            }
+            #plugin-list .card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 15px 30px rgba(0,0,0,0.1) !important;
+            }
+            #plugin-list .badge {
+                font-weight: 500;
+                padding: 0.4em 0.8em;
+            }
+            #plugin-list .btn-sm {
+                padding: 0.25rem 1rem;
+            }
+            #plugin-list .form-switch {
+                margin-top: 2px;
+            }
+            #plugin-list .disabled {
+                opacity: 0.7;
+            }
+            .bg-gradient-light {
+                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            }
+            
+            /* 响应式布局 */
+            @media (min-width: 1400px) {
+                #plugin-list {
+                    grid-template-columns: repeat(4, 1fr);
+                }
+            }
+            @media (min-width: 992px) and (max-width: 1399px) {
+                #plugin-list {
+                    grid-template-columns: repeat(3, 1fr);
+                }
+            }
+            @media (min-width: 768px) and (max-width: 991px) {
+                #plugin-list {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+            @media (max-width: 767px) {
+                #plugin-list {
+                    grid-template-columns: 1fr;
+                }
+            }
+        `;
+        document.head.appendChild(styleEl);
+    }
     
     // 绑定事件
     document.querySelectorAll('.plugin-toggle').forEach(toggle => {
@@ -373,7 +483,7 @@ async function openConfigModal(pluginId) {
         document.getElementById('plugin-config-form').innerHTML = '';
         
         // 设置标题
-        document.getElementById('plugin-config-title').textContent = `${plugin.name} 配置`;
+        document.getElementById('plugin-config-title').textContent = `${plugin.name} 配置文件`;
 
         // 确保销毁旧的模态框实例
         const oldModal = bootstrap.Modal.getInstance(modalEl);
@@ -387,116 +497,104 @@ async function openConfigModal(pluginId) {
             keyboard: true
         });
 
-        // 监听模态框显示完成事件
-        modalEl.addEventListener('shown.bs.modal', async function onShown() {
-            try {
-                // 获取配置
-                const response = await fetch(`/api/plugin_config?plugin_id=${pluginId}`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    renderConfigForm(data.config);
-                    document.getElementById('plugin-config-loading').style.display = 'none';
-                } else {
-                    throw new Error(data.error || '获取配置失败');
-                }
-            } catch (error) {
-                console.error('加载配置失败:', error);
-                document.getElementById('plugin-config-loading').style.display = 'none';
-                document.getElementById('plugin-config-error').style.display = 'block';
-                document.getElementById('plugin-config-error').textContent = `加载配置失败: ${error.message}`;
-            }
-            
-            // 移除事件监听器
-            modalEl.removeEventListener('shown.bs.modal', onShown);
-        });
-
         // 显示模态框
         modal.show();
         
+        try {
+            // 获取配置文件路径
+            const response = await fetch(`/api/plugin_config_file?plugin_id=${pluginId}`);
+            const data = await response.json();
+            
+            if (data.success && data.config_file) {
+                // 获取文件内容
+                const contentResponse = await fetch(`/api/files/read?path=${encodeURIComponent(data.config_file)}`);
+                const contentData = await contentResponse.json();
+                
+                if (contentData.success) {
+                    // 创建文本编辑器
+                    const formContainer = document.getElementById('plugin-config-form');
+                    formContainer.innerHTML = `
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            正在编辑: ${data.config_file}
+                        </div>
+                        <div class="mb-3">
+                            <textarea id="config-editor" class="form-control" style="min-height: 300px; font-family: monospace;">${contentData.content}</textarea>
+                        </div>
+                    `;
+                    
+                    // 存储当前配置文件路径，用于保存
+                    document.getElementById('plugin-config-save').setAttribute('data-config-file', data.config_file);
+                    document.getElementById('plugin-config-save').textContent = '保存';
+                    
+                    document.getElementById('plugin-config-loading').style.display = 'none';
+                } else {
+                    throw new Error(contentData.error || '无法读取配置文件内容');
+                }
+            } else {
+                throw new Error(data.error || '无法获取配置文件');
+            }
+        } catch (error) {
+            console.error('加载配置文件失败:', error);
+            document.getElementById('plugin-config-loading').style.display = 'none';
+            document.getElementById('plugin-config-error').style.display = 'block';
+            document.getElementById('plugin-config-error').querySelector('span').textContent = `加载配置失败: ${error.message}`;
+        }
     } catch (error) {
         console.error('打开配置失败:', error);
         showToast(`配置界面加载失败: ${error.message}`, 'danger');
     }
 }
 
-// 渲染配置表单
-function renderConfigForm(config) {
-    const formContainer = document.getElementById('plugin-config-form');
-    formContainer.innerHTML = '';
-    
-    if (!config || Object.keys(config).length === 0) {
-        formContainer.innerHTML = `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle-fill me-2"></i>
-                此插件没有可配置的选项
-            </div>
-        `;
-        return;
-    }
-    
-    for (const section in config) {
-        const sectionEl = document.createElement('div');
-        sectionEl.className = 'plugin-config-section mb-4';
-        
-        const sectionTitle = document.createElement('h5');
-        sectionTitle.className = 'mb-3';
-        sectionTitle.textContent = section;
-        sectionEl.appendChild(sectionTitle);
-        
-        for (const key in config[section]) {
-            const value = config[section][key];
-            const formGroup = document.createElement('div');
-            formGroup.className = 'mb-3';
-            
-            const label = document.createElement('label');
-            label.className = 'form-label';
-            label.textContent = key;
-            formGroup.appendChild(label);
-            
-            let input;
-            
-            if (typeof value === 'boolean') {
-                // 布尔值使用开关
-                const switchDiv = document.createElement('div');
-                switchDiv.className = 'form-check form-switch';
-                
-                input = document.createElement('input');
-                input.className = 'form-check-input';
-                input.type = 'checkbox';
-                input.checked = value;
-                input.setAttribute('data-section', section);
-                input.setAttribute('data-key', key);
-                input.setAttribute('data-type', 'boolean');
-                
-                switchDiv.appendChild(input);
-                formGroup.appendChild(switchDiv);
-            } else if (typeof value === 'number') {
-                // 数字使用数字输入框
-                input = document.createElement('input');
-                input.className = 'form-control';
-                input.type = 'number';
-                input.value = value;
-                input.setAttribute('data-section', section);
-                input.setAttribute('data-key', key);
-                input.setAttribute('data-type', 'number');
-                formGroup.appendChild(input);
-            } else {
-                // 字符串使用文本输入框
-                input = document.createElement('input');
-                input.className = 'form-control';
-                input.type = 'text';
-                input.value = value;
-                input.setAttribute('data-section', section);
-                input.setAttribute('data-key', key);
-                input.setAttribute('data-type', 'string');
-                formGroup.appendChild(input);
-            }
-            
-            sectionEl.appendChild(formGroup);
+// 保存配置
+async function savePluginConfig() {
+    try {
+        // 获取配置文件路径
+        const configFile = document.getElementById('plugin-config-save').getAttribute('data-config-file');
+        if (!configFile) {
+            throw new Error('未找到配置文件路径');
         }
         
-        formContainer.appendChild(sectionEl);
+        // 获取编辑器内容
+        const content = document.getElementById('config-editor').value;
+        
+        // 显示保存中状态
+        const saveBtn = document.getElementById('plugin-config-save');
+        const originalText = saveBtn.textContent;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
+        
+        // 发送保存请求
+        const response = await fetch('/api/files/write', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                path: configFile,
+                content: content
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('配置已保存', 'success');
+            // 关闭模态框
+            const modalEl = document.getElementById('plugin-config-modal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            modalInstance.hide();
+        } else {
+            throw new Error(data.error || '保存失败');
+        }
+    } catch (error) {
+        console.error('保存配置失败:', error);
+        showToast(`保存配置失败: ${error.message}`, 'danger');
+    } finally {
+        // 恢复保存按钮状态
+        const saveBtn = document.getElementById('plugin-config-save');
+        saveBtn.disabled = false;
+        saveBtn.textContent = '保存';
     }
 }
 
@@ -737,7 +835,13 @@ function renderMarketPlugins(marketPluginsList) {
         return;
     }
     
-    let html = '';
+    // 重置市场列表HTML
+    marketList.innerHTML = '';
+    
+    // 创建一个行容器
+    const rowContainer = document.createElement('div');
+    rowContainer.className = 'row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4';
+    marketList.appendChild(rowContainer);
     
     marketPluginsList.forEach((plugin, index) => {
         // 将标签字符串转换为数组
@@ -745,9 +849,15 @@ function renderMarketPlugins(marketPluginsList) {
         
         // 生成标签HTML
         let tagsHtml = '';
-        tags.forEach(tag => {
-            tagsHtml += `<span class="plugin-tag">${tag.trim()}</span>`;
-        });
+        if (tags.length > 0) {
+            tagsHtml = '<div class="plugin-tags mb-2">';
+            tags.forEach(tag => {
+                if (tag.trim()) {
+                    tagsHtml += `<span class="badge bg-light text-dark me-1 mb-1">${tag.trim()}</span>`;
+                }
+            });
+            tagsHtml += '</div>';
+        }
         
         // 检查插件是否已安装
         const isInstalled = plugins && Array.isArray(plugins) && plugins.some(p => p.name === plugin.name);
@@ -764,39 +874,91 @@ function renderMarketPlugins(marketPluginsList) {
         const colorIndex = Math.abs(hashCode(plugin.name) % colors.length);
         const gradientColors = colors[colorIndex];
         
-        html += `
-            <div class="col">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="plugin-icon" style="background: linear-gradient(135deg, ${gradientColors[0]}, ${gradientColors[1]});">
-                                <i class="bi bi-puzzle"></i>
-                            </div>
-                            <div>
-                                <h5 class="card-title mb-0">${plugin.name}</h5>
-                                <div class="text-muted small">v${plugin.version}</div>
-                            </div>
-                            ${isInstalled ? '<span class="badge bg-success ms-2">已安装</span>' : ''}
+        // 创建卡片元素
+        const colElement = document.createElement('div');
+        colElement.className = 'col';
+        
+        // 生成卡片HTML
+        colElement.innerHTML = `
+            <div class="card h-100 shadow border-0 rounded-4 overflow-hidden">
+                <div class="card-header p-3 bg-gradient-light border-0" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
+                    <div class="d-flex align-items-center">
+                        <div class="plugin-icon rounded-circle shadow-sm" style="background: linear-gradient(135deg, ${gradientColors[0]}, ${gradientColors[1]});">
+                            <i class="bi bi-puzzle"></i>
                         </div>
-                        <p class="card-text">${plugin.description}</p>
-                        <div class="mb-3">
-                            ${tagsHtml}
+                        <div class="ms-3">
+                            <h5 class="card-title mb-0 fw-bold">${plugin.name}</h5>
+                            <div class="text-muted small">v${plugin.version}</div>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="text-muted small">
-                                <i class="bi bi-person me-1"></i>${plugin.author}
-                            </div>
-                            <button class="btn btn-sm btn-outline-primary btn-install-plugin" data-plugin-index="${index}">
-                                <i class="bi ${isInstalled ? 'bi-check-circle' : 'bi-download'} me-1"></i>${isInstalled ? '已安装' : '安装'}
-                            </button>
+                        ${isInstalled ? '<span class="badge bg-success ms-auto">已安装</span>' : ''}
+                    </div>
+                </div>
+                <div class="card-body p-3 d-flex flex-column">
+                    <p class="card-text text-truncate-2" title="${plugin.description}">${plugin.description}</p>
+                    ${tagsHtml}
+                    <div class="d-flex justify-content-between align-items-center mt-auto pt-3">
+                        <div class="text-muted small">
+                            <i class="bi bi-person me-1"></i>${plugin.author}
                         </div>
+                        <button class="btn ${isInstalled ? 'btn-outline-primary' : 'btn-primary'} btn-sm rounded-pill btn-install-plugin" data-plugin-index="${index}">
+                            <i class="bi ${isInstalled ? 'bi-arrow-repeat' : 'bi-download'} me-1"></i>${isInstalled ? '重新安装' : '安装'}
+                        </button>
                     </div>
                 </div>
             </div>
         `;
+        
+        // 添加到行容器
+        rowContainer.appendChild(colElement);
     });
     
-    marketList.innerHTML = html;
+    // 添加CSS样式
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+        .text-truncate-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-height: 3em;
+        }
+        #market-list .plugin-icon {
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            border-radius: 50%;
+            overflow: hidden;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        }
+        #market-list .card {
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        #market-list .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1) !important;
+        }
+        #market-list .plugin-tags {
+            min-height: 28px;
+        }
+        #market-list .badge {
+            font-weight: 500;
+            padding: 0.4em 0.8em;
+        }
+        #market-list .btn-sm {
+            padding: 0.25rem 1rem;
+        }
+        .bg-gradient-light {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        }
+    `;
+    document.head.appendChild(styleEl);
     
     // 绑定安装按钮事件
     document.querySelectorAll('.btn-install-plugin').forEach(button => {
@@ -1069,8 +1231,11 @@ async function installPlugin(plugin) {
             cleanGithubUrl = cleanGithubUrl.slice(0, -4);
         }
         
+        // 检查是否已安装（重新安装）
+        const isReinstall = plugins && Array.isArray(plugins) && plugins.some(p => p.name === plugin.name);
+        
         // 发送安装请求到本地后端
-        console.log('正在向本地后端发送安装请求...');
+        console.log(`正在向本地后端发送${isReinstall ? '重新' : ''}安装请求...`);
         const response = await fetch('/api/plugin_market/install', {
             method: 'POST',
             headers: { 
@@ -1098,13 +1263,21 @@ async function installPlugin(plugin) {
         const result = await response.json();
         
         if (result.success) {
-            // 更新安装状态
-            button.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i>已安装`;
-            button.classList.remove('btn-outline-primary');
+            // 更新按钮状态
+            button.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i>${isReinstall ? '已重新安装' : '已安装'}`;
+            button.classList.remove('btn-primary');
             button.classList.add('btn-outline-success');
             
             // 显示成功提示
-            showToast(`插件 ${plugin.name} 安装成功`, 'success');
+            showToast(`插件 ${plugin.name} ${isReinstall ? '重新' : ''}安装成功`, 'success');
+            
+            // 重置按钮状态并重新显示重新安装按钮
+            setTimeout(() => {
+                button.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i>重新安装`;
+                button.classList.remove('btn-outline-success');
+                button.classList.add('btn-outline-primary');
+                button.disabled = false;
+            }, 3000);
             
             // 刷新本地插件列表
             setTimeout(() => {
@@ -1245,74 +1418,5 @@ function initUploadModal() {
         });
     } else {
         console.error('找不到上传插件按钮');
-    }
-}
-
-// 保存配置
-async function savePluginConfig(pluginId) {
-    try {
-        const formContainer = document.getElementById('plugin-config-form');
-        const config = {};
-        
-        // 收集所有配置项
-        const inputs = formContainer.querySelectorAll('input[data-section]');
-        inputs.forEach(input => {
-            const section = input.getAttribute('data-section');
-            const key = input.getAttribute('data-key');
-            const type = input.getAttribute('data-type');
-            
-            if (!config[section]) {
-                config[section] = {};
-            }
-            
-            let value;
-            if (type === 'boolean') {
-                value = input.checked;
-            } else if (type === 'number') {
-                value = parseFloat(input.value);
-            } else {
-                value = input.value;
-            }
-            
-            config[section][key] = value;
-        });
-        
-        // 显示保存中状态
-        const saveBtn = document.getElementById('plugin-config-save');
-        const originalText = saveBtn.textContent;
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
-        
-        // 发送保存请求
-        const response = await fetch('/api/plugin_config', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                plugin_id: pluginId,
-                config: config
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showToast('配置已保存', 'success');
-            // 关闭模态框
-            const modalEl = document.getElementById('plugin-config-modal');
-            const modalInstance = bootstrap.Modal.getInstance(modalEl);
-            modalInstance.hide();
-        } else {
-            throw new Error(data.error || '保存失败');
-        }
-    } catch (error) {
-        console.error('保存配置失败:', error);
-        showToast(`保存配置失败: ${error.message}`, 'danger');
-    } finally {
-        // 恢复保存按钮状态
-        const saveBtn = document.getElementById('plugin-config-save');
-        saveBtn.disabled = false;
-        saveBtn.textContent = '保存';
     }
 } 

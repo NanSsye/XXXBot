@@ -251,7 +251,10 @@ class DailyBot(PluginBase):
             
             # 根据配置决定是否使用JSON格式
             params = {"type": "json"} if self.morning_news_text_enabled else {}
-            async with aiohttp.ClientSession() as session:
+            
+            # 创建SSL上下文，禁用证书验证
+            conn = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=conn) as session:
                 async with session.get(url, params=params) as response:
                     content_type = response.headers.get('Content-Type', '')
                     
@@ -342,6 +345,10 @@ class DailyBot(PluginBase):
     async def download_image(self, url: str) -> Optional[bytes]:
         """下载图片内容"""
         try:
+            # 导入并禁用urllib3的不安全请求警告
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
             # 使用cache目录存储临时文件
             cache_dir = os.path.join("resources", "cache", "dailybot")
             os.makedirs(cache_dir, exist_ok=True)
@@ -360,24 +367,27 @@ class DailyBot(PluginBase):
                 'Referer': 'https://api.vvhan.com/'  # 添加来源头
             }
             
+            # 使用aiohttp的异步请求替代同步requests
             # 使用带重试的请求
-            for _ in range(3):  # 最多重试3次
-                response = requests.get(url, 
-                                     headers=headers, 
-                                     verify=False, 
-                                     timeout=30,
-                                     stream=True)  # 使用流式下载
-                
-                if response.status_code == 200:
-                    content = response.content
-                    # 简单验证图片内容
-                    if len(content) > 1024 and content.startswith(b'\xff\xd8') or content.startswith(b'\x89PNG'):
-                        logger.info("[图片下载] 下载成功，大小: {} bytes", len(content))
-                        return content
-                    logger.warning("[图片下载] 图片内容验证失败")
-                
+            max_retries = 3
+            for retry in range(max_retries):
+                try:
+                    # 创建SSL上下文，禁用证书验证
+                    conn = aiohttp.TCPConnector(ssl=False)
+                    async with aiohttp.ClientSession(connector=conn) as session:
+                        async with session.get(url, headers=headers, timeout=30) as response:
+                            if response.status == 200:
+                                content = await response.read()
+                                # 简单验证图片内容
+                                if len(content) > 1024 and (content.startswith(b'\xff\xd8') or content.startswith(b'\x89PNG')):
+                                    logger.info("[图片下载] 下载成功，大小: {} bytes", len(content))
+                                    return content
+                                logger.warning("[图片下载] 图片内容验证失败")
+                except Exception as e:
+                    logger.warning(f"[图片下载] 第{retry+1}次重试失败: {str(e)}")
+                    
                 # 等待指数退避
-                await asyncio.sleep(2 ** _)
+                await asyncio.sleep(2 ** retry)
                 
             logger.error("[图片下载] 多次重试失败")
             return None
@@ -425,7 +435,9 @@ class DailyBot(PluginBase):
         """获取明星八卦"""
         url = self.bagua_api_url
         try:
-            async with aiohttp.ClientSession() as session:
+            # 创建SSL上下文，禁用证书验证
+            conn = aiohttp.TCPConnector(ssl=False)
+            async with aiohttp.ClientSession(connector=conn) as session:
                 async with session.get(url) as response:
                     content_type = response.headers.get('Content-Type', '')
                     

@@ -151,6 +151,7 @@
     /* 修复模态框样式 */
     .modal {
         background: rgba(0, 0, 0, 0.5);
+        overflow-y: auto !important; /* 确保模态框可滚动 */
     }
     
     .modal-backdrop {
@@ -162,15 +163,35 @@
         max-width: 800px;
     }
     
+    /* 修复模态框滚动问题 */
+    .modal-open {
+        overflow: auto !important;
+        padding-right: 0 !important;
+    }
+    
     .modal-content {
         border-radius: 8px;
         box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        max-height: 90vh; /* 设置最大高度 */
+        display: flex;
+        flex-direction: column;
     }
     
     /* 确保模态框内容可滚动 */
     .modal-body {
-        max-height: calc(100vh - 210px);
-        overflow-y: auto;
+        max-height: calc(100vh - 180px);
+        overflow-y: auto !important;
+    }
+    
+    /* 修复提醒模态框的滚动问题 */
+    #reminder-modal .modal-body {
+        max-height: calc(100vh - 180px);
+        overflow-y: auto !important;
+    }
+    
+    #reminder-modal .contact-scroll-area {
+        max-height: 300px;
+        overflow-y: auto !important;
     }
     
     /* 移除所有自定义对话框和遮罩 */
@@ -182,7 +203,7 @@
     
     /* 修复body样式 */
     body.modal-open {
-        overflow: hidden;
+        overflow: auto !important;
         padding-right: 0 !important;
     }
     
@@ -588,6 +609,7 @@
             <div class="modal-body">
                 <form id="reminder-form">
                     <input type="hidden" id="reminder-id" value="">
+                    <input type="hidden" id="reminder-owner" value="">
                     
                     <div class="row">
                         <!-- 联系人选择区域 -->
@@ -612,7 +634,7 @@
                                         <button type="button" class="btn btn-sm btn-outline-secondary" id="reminder-select-all">全选</button>
                                         <button type="button" class="btn btn-sm btn-outline-secondary" id="reminder-deselect-all">取消全选</button>
                                     </div>
-                                    <div class="contact-scroll-area p-3" style="height: 300px; overflow-y: auto;" id="reminder-contacts-list">
+                                    <div class="contact-scroll-area p-3" style="height: 260px; overflow-y: auto;" id="reminder-contacts-list">
                                         <!-- 联系人列表将通过JavaScript加载 -->
                                     </div>
                                 </div>
@@ -1727,6 +1749,7 @@
         
         // 获取提醒内容和设置
         const id = $('#reminder-id').val();
+        const ownerId = $('#reminder-owner').val();
         const content = $('#reminder-content').val().trim();
         const type = $('#reminder-type').val();
         
@@ -1778,26 +1801,15 @@
         
         // 设置按钮状态
         $('#save-reminder').prop('disabled', true);
-        $('#reminder-status').html('<span class="text-info">正在保存提醒...</span>');
         
         // 显示进度条
         $('#reminder-progress-container').show();
         $('#reminder-progress-bar').css('width', '0%');
         
-        // 记录成功和失败的数量
-        let successCount = 0;
-        let failCount = 0;
-        
-        // 逐个保存提醒
-        for (let i = 0; i < selectedWxids.length; i++) {
-            const wxid = selectedWxids[i];
-            const contact = contacts.find(c => c.wxid === wxid);
-            const contactName = contact ? (contact.nickname || wxid) : wxid;
-            
-            // 更新状态
-            const percent = Math.round((i / selectedWxids.length) * 100);
-            $('#reminder-progress-bar').css('width', percent + '%');
-            $('#reminder-status').html(`<span class="text-info">正在为 ${contactName} 设置提醒 (${i+1}/${selectedWxids.length})...</span>`);
+        // 检查是否是修改现有提醒
+        if (id) {
+            // 修改现有提醒
+            const wxid = selectedWxids[0]; // 修改时只能选择一个联系人
             
             // 准备提醒数据
             const data = {
@@ -1807,330 +1819,562 @@
                 chat_id: wxid
             };
             
-            console.log(`保存提醒数据 (${i+1}/${selectedWxids.length}):`, data);
+            // 如果有所有者ID，添加到数据中
+            if (ownerId) {
+                data.owner = ownerId;
+            }
+            
+            $('#reminder-status').html('<span class="text-info">正在更新提醒...</span>');
             
             try {
-                // 创建提醒
-                const url = `/api/reminders/${wxid}`;
+                // 更新提醒
+                const url = `/api/reminders/${wxid}/${id}`;
                 const response = await $.ajax({
                     url: url,
-                    method: 'POST',
+                    method: 'PUT',
                     contentType: 'application/json',
                     data: JSON.stringify(data)
                 });
                 
                 if (response.success) {
-                    successCount++;
+                    $('#reminder-status').html('<span class="text-success">提醒已更新</span>');
+                    $('#reminder-progress-bar').css('width', '100%');
+                    
+                    // 3秒后自动关闭对话框
+                    setTimeout(function() {
+                        $('#reminder-modal').modal('hide');
+                        
+                        // 刷新提醒列表
+                        if (currentContactId) {
+                            loadReminders(currentContactId);
+                        } else {
+                            loadAllReminders();
+                        }
+                    }, 2000);
                 } else {
-                    failCount++;
-                    console.error(`为 ${contactName} 设置提醒失败: ${response.error}`);
+                    $('#reminder-status').html(`<span class="text-danger">更新提醒失败: ${response.error || '未知错误'}</span>`);
                 }
-                
-                // 添加200ms延迟，避免请求过于频繁
-                await new Promise(resolve => setTimeout(resolve, 200));
             } catch (error) {
-                failCount++;
-                console.error(`为 ${contactName} 设置提醒时出错:`, error);
+                $('#reminder-status').html(`<span class="text-danger">更新提醒出错: ${error.message || error}</span>`);
+            }
+        } else {
+            // 创建新提醒
+            $('#reminder-status').html('<span class="text-info">正在创建提醒...</span>');
+            
+            // 记录成功和失败的数量
+            let successCount = 0;
+            let failCount = 0;
+            
+            // 逐个保存提醒
+            for (let i = 0; i < selectedWxids.length; i++) {
+                const wxid = selectedWxids[i];
+                const contact = contacts.find(c => c.wxid === wxid);
+                const contactName = contact ? (contact.nickname || wxid) : wxid;
+                
+                // 更新状态
+                const percent = Math.round((i / selectedWxids.length) * 100);
+                $('#reminder-progress-bar').css('width', percent + '%');
+                $('#reminder-status').html(`<span class="text-info">正在为 ${contactName} 设置提醒 (${i+1}/${selectedWxids.length})...</span>`);
+                
+                // 准备提醒数据
+                const data = {
+                    content: content,
+                    reminder_type: type,
+                    reminder_time: reminderTime,
+                    chat_id: wxid
+                };
+                
+                console.log(`保存提醒数据 (${i+1}/${selectedWxids.length}):`, data);
+                
+                try {
+                    // 创建提醒
+                    const url = `/api/reminders/${wxid}`;
+                    const response = await $.ajax({
+                        url: url,
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(data)
+                    });
+                    
+                    if (response.success) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                        console.error(`为 ${contactName} 设置提醒失败: ${response.error}`);
+                    }
+                    
+                    // 添加200ms延迟，避免请求过于频繁
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                } catch (error) {
+                    failCount++;
+                    console.error(`为 ${contactName} 设置提醒时出错:`, error);
+                }
+            }
+            
+            // 更新最终状态
+            $('#reminder-progress-bar').css('width', '100%');
+            $('#reminder-status').html(`<span class="text-success">完成! 成功: ${successCount}, 失败: ${failCount}</span>`);
+            
+            // 3秒后自动关闭对话框
+            if (failCount === 0) {
+                setTimeout(function() {
+                    $('#reminder-modal').modal('hide');
+                    
+                    // 刷新提醒列表
+                    if (currentContactId) {
+                        loadReminders(currentContactId);
+                    } else {
+                        loadAllReminders();
+                    }
+                }, 2000);
             }
         }
-        
-        // 更新最终状态
-        $('#reminder-progress-bar').css('width', '100%');
-        $('#reminder-status').html(`<span class="text-success">完成! 成功: ${successCount}, 失败: ${failCount}</span>`);
         
         // 恢复按钮状态
         $('#save-reminder').prop('disabled', false);
-        
-        // 3秒后自动关闭对话框
-        if (failCount === 0) {
-            setTimeout(function() {
-                $('#reminder-modal').modal('hide');
-            }, 3000);
-        }
     }
 
     // 保存提醒按钮点击事件
-$('#save-reminder').click(function() {
-    saveReminder();
-});
-
-// 加载所有提醒
-function loadAllReminders() {
-    // 显示加载状态
-    $('#reminders-loading').show();
-    $('#reminders-list').empty();
-    $('#no-reminders').addClass('d-none');
-    
-    // 发送AJAX请求获取所有提醒
-    $.ajax({
-        url: '/api/reminders',  // 注意：这个API端点需要后端支持
-        type: 'GET',
-        success: function(response) {
-            $('#reminders-loading').hide();
-            
-            if (response.success && response.reminders && response.reminders.length > 0) {
-                // 显示提醒列表
-                displayAllReminders(response.reminders);
-            } else {
-                // 显示无提醒提示
-                $('#no-reminders').removeClass('d-none');
-            }
-        },
-        error: function(xhr, status, error) {
-            $('#reminders-loading').hide();
-            console.error('加载提醒失败:', xhr.status, xhr.responseText);
-            $('#no-reminders').removeClass('d-none').html(
-                `<p class="text-danger">加载提醒失败: ${error}</p>`
-            );
-        }
+    $('#save-reminder').click(function() {
+        saveReminder();
     });
-}
 
-// 显示所有提醒列表
-function displayAllReminders(reminders) {
-    const remindersList = $('#reminders-list');
-    remindersList.empty();
-    
-    reminders.forEach(reminder => {
-        // 格式化提醒时间显示
-        const reminderTime = formatReminderTime(reminder.reminder_time);
-        const reminderType = getReminderTypeLabel(reminder.reminder_type);
+    // 加载所有提醒
+    function loadAllReminders() {
+        // 显示加载状态
+        $('#reminders-loading').show();
+        $('#reminders-list').empty();
+        $('#no-reminders').addClass('d-none');
         
-        // 获取联系人信息
-        const contact = contacts.find(c => c.wxid === reminder.chat_id);
-        const contactName = contact ? (contact.nickname || contact.name || reminder.chat_id) : reminder.chat_id;
+        // 发送AJAX请求获取所有提醒
+        $.ajax({
+            url: '/api/reminders',  // 注意：这个API端点需要后端支持
+            type: 'GET',
+            success: function(response) {
+                $('#reminders-loading').hide();
+                
+                if (response.success && response.reminders && response.reminders.length > 0) {
+                    // 显示提醒列表
+                    displayAllReminders(response.reminders);
+                } else {
+                    // 显示无提醒提示
+                    $('#no-reminders').removeClass('d-none');
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#reminders-loading').hide();
+                console.error('加载提醒失败:', xhr.status, xhr.responseText);
+                $('#no-reminders').removeClass('d-none').html(
+                    `<p class="text-danger">加载提醒失败: ${error}</p>`
+                );
+            }
+        });
+    }
+
+    // 显示所有提醒列表
+    function displayAllReminders(reminders) {
+        const remindersList = $('#reminders-list');
+        remindersList.empty();
         
-        // 创建提醒项
-        const reminderItem = $(`
-            <div class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">${reminder.content}</h6>
-                    <small class="text-${getReminderTypeColor(reminder.reminder_type)}">
-                        ${reminderType}
-                    </small>
+        reminders.forEach(reminder => {
+            // 格式化提醒时间显示
+            const reminderTime = formatReminderTime(reminder.reminder_time);
+            const reminderType = getReminderTypeLabel(reminder.reminder_type);
+            
+            // 获取联系人信息
+            const contact = contacts.find(c => c.wxid === reminder.chat_id);
+            const contactName = contact ? (contact.nickname || contact.name || reminder.chat_id) : reminder.chat_id;
+            
+            // 获取提醒所有者信息（针对群聊提醒）
+            const isGroupChat = reminder.chat_id && reminder.chat_id.includes('@chatroom');
+            const ownerId = reminder.owner || reminder.wxid;
+            let ownerInfo = '';
+            
+            // 如果是群聊提醒且有所有者信息
+            if (isGroupChat) {
+                // 尝试从联系人列表中获取名称
+                let ownerName = ownerId;
+                const ownerContact = contacts.find(c => c.wxid === ownerId);
+                if (ownerContact) {
+                    ownerName = ownerContact.nickname || ownerContact.remark || ownerId;
+                }
+                ownerInfo = `<span class="badge bg-info me-2" title="此提醒由该用户设置">设置者: ${ownerName}</span>`;
+            }
+            
+            // 创建提醒项
+            const reminderItem = $(`
+                <div class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${reminder.content}</h6>
+                        <small class="text-${getReminderTypeColor(reminder.reminder_type)}">
+                            ${reminderType}
+                        </small>
+                    </div>
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <div>
+                            <p class="mb-1 text-muted small">
+                                <i class="bi bi-clock"></i> ${reminderTime}
+                                ${ownerInfo}
+                            </p>
+                            <p class="mb-0 text-primary small">
+                                <i class="bi bi-people"></i> ${contactName}
+                            </p>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2 edit-reminder" 
+                                    data-wxid="${reminder.chat_id}" 
+                                    data-id="${reminder.id}" 
+                                    data-owner="${ownerId}"
+                                    data-content="${reminder.content}" 
+                                    data-type="${reminder.reminder_type}" 
+                                    data-time="${reminder.reminder_time}">
+                                <i class="bi bi-pencil"></i> 修改
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-reminder" 
+                                    data-wxid="${reminder.chat_id}" 
+                                    data-id="${reminder.id}"
+                                    data-owner="${ownerId}">
+                                <i class="bi bi-trash"></i> 删除
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="d-flex w-100 justify-content-between align-items-center">
-                    <div>
+            `);
+            
+            remindersList.append(reminderItem);
+        });
+        
+        // 添加删除提醒事件处理
+        $('.delete-reminder').click(function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const reminderId = $(this).data('id');
+            const wxid = $(this).data('wxid');
+            const ownerId = $(this).data('owner');
+            deleteReminder(wxid, reminderId, ownerId);
+        });
+        
+        // 添加编辑提醒事件处理
+        $('.edit-reminder').click(function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const reminderId = $(this).data('id');
+            const wxid = $(this).data('wxid');
+            const ownerId = $(this).data('owner');
+            const content = $(this).data('content');
+            const reminderType = $(this).data('type');
+            const reminderTime = $(this).data('time');
+            
+            editReminder(reminderId, wxid, content, reminderType, reminderTime);
+        });
+    }
+
+    // 加载当前联系人的提醒
+    function loadReminders(wxid) {
+        if (!wxid) return;
+        
+        // 显示加载状态
+        $('#reminders-loading').show();
+        $('#reminders-list').empty();
+        $('#no-reminders').addClass('d-none');
+        
+        // 发送AJAX请求获取提醒
+        $.ajax({
+            url: `/api/reminders/${wxid}`,
+            type: 'GET',
+            success: function(response) {
+                $('#reminders-loading').hide();
+                
+                if (response.success && response.reminders && response.reminders.length > 0) {
+                    // 显示提醒列表
+                    displayReminders(response.reminders, wxid);
+                } else {
+                    // 显示无提醒提示
+                    $('#no-reminders').removeClass('d-none');
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#reminders-loading').hide();
+                $('#no-reminders').removeClass('d-none').html(
+                    `<p class="text-danger">加载提醒失败: ${error}</p>`
+                );
+            }
+        });
+    }
+
+    // 显示提醒列表
+    function displayReminders(reminders, wxid) {
+        const remindersList = $('#reminders-list');
+        remindersList.empty();
+        
+        reminders.forEach(reminder => {
+            // 格式化提醒时间显示
+            const reminderTime = formatReminderTime(reminder.reminder_time);
+            const reminderType = getReminderTypeLabel(reminder.reminder_type);
+            
+            // 创建提醒项
+            const reminderItem = $(`
+                <div class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${reminder.content}</h6>
+                        <small class="text-${getReminderTypeColor(reminder.reminder_type)}">
+                            ${reminderType}
+                        </small>
+                    </div>
+                    <div class="d-flex w-100 justify-content-between align-items-center">
                         <p class="mb-1 text-muted small">
                             <i class="bi bi-clock"></i> ${reminderTime}
                         </p>
-                        <p class="mb-0 text-primary small">
-                            <i class="bi bi-person"></i> ${contactName}
-                        </p>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2 edit-reminder" 
+                                    data-id="${reminder.id}" 
+                                    data-content="${reminder.content}" 
+                                    data-type="${reminder.reminder_type}" 
+                                    data-time="${reminder.reminder_time}">
+                                <i class="bi bi-pencil"></i> 修改
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-reminder" 
+                                    data-id="${reminder.id}">
+                                <i class="bi bi-trash"></i> 删除
+                            </button>
+                        </div>
                     </div>
-                    <button class="btn btn-sm btn-outline-danger delete-reminder" data-wxid="${reminder.chat_id}" data-id="${reminder.id}">
-                        <i class="bi bi-trash"></i> 删除
-                    </button>
                 </div>
-            </div>
-        `);
-        
-        remindersList.append(reminderItem);
-    });
-    
-    // 添加删除提醒事件处理
-    $('.delete-reminder').click(function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const reminderId = $(this).data('id');
-        const wxid = $(this).data('wxid');
-        deleteReminder(wxid, reminderId);
-    });
-}
-
-// 加载当前联系人的提醒
-function loadReminders(wxid) {
-    if (!wxid) return;
-    
-    // 显示加载状态
-    $('#reminders-loading').show();
-    $('#reminders-list').empty();
-    $('#no-reminders').addClass('d-none');
-    
-    // 发送AJAX请求获取提醒
-    $.ajax({
-        url: `/api/reminders/${wxid}`,
-        type: 'GET',
-        success: function(response) {
-            $('#reminders-loading').hide();
+            `);
             
-            if (response.success && response.reminders && response.reminders.length > 0) {
-                // 显示提醒列表
-                displayReminders(response.reminders, wxid);
-            } else {
-                // 显示无提醒提示
-                $('#no-reminders').removeClass('d-none');
+            remindersList.append(reminderItem);
+        });
+        
+        // 添加删除提醒事件处理
+        $('.delete-reminder').click(function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const reminderId = $(this).data('id');
+            deleteReminder(wxid, reminderId);
+        });
+        
+        // 添加编辑提醒事件处理
+        $('.edit-reminder').click(function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const reminderId = $(this).data('id');
+            const content = $(this).data('content');
+            const reminderType = $(this).data('type');
+            const reminderTime = $(this).data('time');
+            
+            editReminder(reminderId, wxid, content, reminderType, reminderTime);
+        });
+    }
+
+    // 获取提醒类型标签
+    function getReminderTypeLabel(type) {
+        switch(type) {
+            case 'one_time': return '单次提醒';
+            case 'every_day': return '每日提醒';
+            case 'weekly': return '每周提醒';
+            case 'monthly': return '每月提醒';
+            default: return type;
+        }
+    }
+
+    // 获取提醒类型颜色
+    function getReminderTypeColor(type) {
+        switch(type) {
+            case 'one_time': return 'danger';
+            case 'every_day': return 'primary';
+            case 'weekly': return 'success';
+            case 'monthly': return 'warning';
+            default: return 'secondary';
+        }
+    }
+
+    // 格式化提醒时间显示
+    function formatReminderTime(timeString) {
+        try {
+            if (!timeString) return '未指定时间';
+            
+            // 处理不同的时间格式
+            if (timeString.includes(':') && !timeString.includes('-')) {
+                // 仅有时间: HH:MM
+                return `每天 ${timeString}`;
+            } else if (timeString.includes(' ') && !timeString.includes('-')) {
+                // 星期几 + 时间: 0 12:30
+                const parts = timeString.split(' ');
+                const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][parseInt(parts[0])];
+                return `${weekday} ${parts[1]}`;
+            } else if (timeString.includes('-')) {
+                // 完整日期时间
+                return new Date(timeString).toLocaleString('zh-CN');
             }
-        },
-        error: function(xhr, status, error) {
-            $('#reminders-loading').hide();
-            $('#no-reminders').removeClass('d-none').html(
-                `<p class="text-danger">加载提醒失败: ${error}</p>`
-            );
+            
+            return timeString;
+        } catch (e) {
+            console.error('格式化时间出错:', e);
+            return timeString;
         }
-    });
-}
-
-// 显示提醒列表
-function displayReminders(reminders, wxid) {
-    const remindersList = $('#reminders-list');
-    remindersList.empty();
-    
-    reminders.forEach(reminder => {
-        // 格式化提醒时间显示
-        const reminderTime = formatReminderTime(reminder.reminder_time);
-        const reminderType = getReminderTypeLabel(reminder.reminder_type);
-        
-        // 创建提醒项
-        const reminderItem = $(`
-            <div class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">${reminder.content}</h6>
-                    <small class="text-${getReminderTypeColor(reminder.reminder_type)}">
-                        ${reminderType}
-                    </small>
-                </div>
-                <div class="d-flex w-100 justify-content-between align-items-center">
-                    <p class="mb-1 text-muted small">
-                        <i class="bi bi-clock"></i> ${reminderTime}
-                    </p>
-                    <button class="btn btn-sm btn-outline-danger delete-reminder" data-id="${reminder.id}">
-                        <i class="bi bi-trash"></i> 删除
-                    </button>
-                </div>
-            </div>
-        `);
-        
-        remindersList.append(reminderItem);
-    });
-    
-    // 添加删除提醒事件处理
-    $('.delete-reminder').click(function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const reminderId = $(this).data('id');
-        deleteReminder(wxid, reminderId);
-    });
-}
-
-// 获取提醒类型标签
-function getReminderTypeLabel(type) {
-    switch(type) {
-        case 'one_time': return '单次提醒';
-        case 'every_day': return '每日提醒';
-        case 'weekly': return '每周提醒';
-        case 'monthly': return '每月提醒';
-        default: return type;
     }
-}
 
-// 获取提醒类型颜色
-function getReminderTypeColor(type) {
-    switch(type) {
-        case 'one_time': return 'danger';
-        case 'every_day': return 'primary';
-        case 'weekly': return 'success';
-        case 'monthly': return 'warning';
-        default: return 'secondary';
-    }
-}
-
-// 格式化提醒时间显示
-function formatReminderTime(timeString) {
-    try {
-        if (!timeString) return '未指定时间';
+    // 删除提醒
+    function deleteReminder(wxid, reminderId) {
+        if (!confirm('确定要删除这条提醒吗？')) return;
         
-        // 处理不同的时间格式
-        if (timeString.includes(':') && !timeString.includes('-')) {
-            // 仅有时间: HH:MM
-            return `每天 ${timeString}`;
-        } else if (timeString.includes(' ') && !timeString.includes('-')) {
-            // 星期几 + 时间: 0 12:30
-            const parts = timeString.split(' ');
-            const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][parseInt(parts[0])];
-            return `${weekday} ${parts[1]}`;
-        } else if (timeString.includes('-')) {
-            // 完整日期时间
-            return new Date(timeString).toLocaleString('zh-CN');
-        }
-        
-        return timeString;
-    } catch (e) {
-        console.error('格式化时间出错:', e);
-        return timeString;
-    }
-}
-
-// 删除提醒
-function deleteReminder(wxid, reminderId) {
-    if (!confirm('确定要删除这条提醒吗？')) return;
-    
-    $.ajax({
-        url: `/api/reminders/${wxid}/${reminderId}`,
-        type: 'DELETE',
-        success: function(response) {
-            if (response.success) {
-                // 刷新提醒列表
-                if (currentContactId) {
-                    loadReminders(currentContactId);
+        $.ajax({
+            url: `/api/reminders/${wxid}/${reminderId}`,
+            type: 'DELETE',
+            success: function(response) {
+                if (response.success) {
+                    // 刷新提醒列表
+                    if (currentContactId) {
+                        loadReminders(currentContactId);
+                    } else {
+                        loadAllReminders();
+                    }
+                    alert('提醒已删除');
                 } else {
-                    loadAllReminders();
+                    alert('删除提醒失败: ' + (response.error || '未知错误'));
                 }
-                alert('提醒已删除');
-            } else {
-                alert('删除提醒失败: ' + (response.error || '未知错误'));
+            },
+            error: function(xhr, status, error) {
+                alert('删除提醒失败: ' + error);
             }
-        },
-        error: function(xhr, status, error) {
-            alert('删除提醒失败: ' + error);
+        });
+    }
+
+    // 修改联系人详情展示函数，添加加载提醒的代码
+    const originalShowContactDetail = showContactDetail;
+    showContactDetail = function(wxid) {
+        // 调用原始函数
+        originalShowContactDetail(wxid);
+        
+        // 加载提醒
+        loadReminders(wxid);
+    };
+
+    // 添加提醒按钮事件处理
+    $(document).on('click', '#add-reminder-btn', function() {
+        // 重置提醒表单
+        resetReminderModal();
+        
+        // 如果已选择联系人，就预选该联系人
+        if (currentContactId) {
+            initReminderContactsList([currentContactId]);
+        } else {
+            initReminderContactsList([]);
+        }
+        
+        // 显示提醒对话框
+        $('#reminder-modal').modal('show');
+    });
+
+    // 添加刷新按钮事件处理
+    $(document).on('click', '#refresh-reminders-btn', function() {
+        if (currentContactId) {
+            loadReminders(currentContactId);
+        } else {
+            loadAllReminders();
         }
     });
-}
 
-// 修改联系人详情展示函数，添加加载提醒的代码
-const originalShowContactDetail = showContactDetail;
-showContactDetail = function(wxid) {
-    // 调用原始函数
-    originalShowContactDetail(wxid);
-    
-    // 加载提醒
-    loadReminders(wxid);
-};
-
-// 添加提醒按钮事件处理
-$(document).on('click', '#add-reminder-btn', function() {
-    // 重置提醒表单
-    resetReminderModal();
-    
-    // 如果已选择联系人，就预选该联系人
-    if (currentContactId) {
-        initReminderContactsList([currentContactId]);
-    } else {
-        initReminderContactsList([]);
-    }
-    
-    // 显示提醒对话框
-    $('#reminder-modal').modal('show');
-});
-
-// 添加刷新按钮事件处理
-$(document).on('click', '#refresh-reminders-btn', function() {
-    if (currentContactId) {
-        loadReminders(currentContactId);
-    } else {
+    // 页面加载完成后，自动加载所有提醒
+    $(document).ready(function() {
+        // 其他已有的ready函数代码...
+        
+        // 加载所有提醒
         loadAllReminders();
-    }
-});
+    });
 
-// 页面加载完成后，自动加载所有提醒
-$(document).ready(function() {
-    // 其他已有的ready函数代码...
+    // 编辑提醒函数
+    function editReminder(reminderId, wxid, content, reminderType, reminderTime) {
+        // 重置模态窗口
+        resetReminderModal();
+        
+        // 设置提醒ID
+        $('#reminder-id').val(reminderId);
+        
+        // 设置提醒内容
+        $('#reminder-content').val(content);
+        
+        // 设置提醒类型
+        $('#reminder-type').val(reminderType).trigger('change');
+        
+        // 设置提醒时间
+        if (reminderType === 'one_time') {
+            // 处理日期时间格式
+            if (reminderTime.includes(':') && reminderTime.includes('-')) {
+                // 转换为HTML日期时间选择器的格式 YYYY-MM-DDTHH:MM
+                const date = new Date(reminderTime);
+                const formattedDate = date.toISOString().substr(0, 16);
+                $('#one-time-date').val(formattedDate);
+            }
+        } else if (reminderType === 'every_day') {
+            $('#daily-time').val(reminderTime);
+        } else if (reminderType === 'weekly') {
+            const parts = reminderTime.split(' ');
+            if (parts.length === 2) {
+                $('#weekly-day').val(parts[0]);
+                $('#weekly-time').val(parts[1]);
+            }
+        } else if (reminderType === 'monthly') {
+            const parts = reminderTime.split(' ');
+            if (parts.length === 2) {
+                $('#monthly-day').val(parts[0]);
+                $('#monthly-time').val(parts[1]);
+            }
+        }
+        
+        // 预选联系人
+        initReminderContactsList([wxid]);
+        
+        // 设置模态框标题
+        $('#reminderModalLabel').text('修改提醒');
+        
+        // 显示模态框
+        $('#reminder-modal').modal('show');
+    }
+
+    // 在页面初始化时添加模态窗口滚动修复
+    $(document).ready(function() {
+        // ... 其他已有代码 ...
+        
+        // 修复模态框滚动问题
+        fixModalScrolling();
+    });
     
-    // 加载所有提醒
-    loadAllReminders();
-});
+    // 添加修复模态框滚动问题的函数
+    function fixModalScrolling() {
+        // 确保打开模态框时不会锁定body滚动
+        $(document).on('shown.bs.modal', '.modal', function () {
+            $('body').addClass('modal-open').css({
+                'overflow': 'auto',
+                'padding-right': '0'
+            });
+            
+            // 确保模态框可以滚动
+            $(this).css('overflow-y', 'auto');
+        });
+        
+        // 关闭模态框时重置样式
+        $(document).on('hidden.bs.modal', '.modal', function () {
+            if ($('.modal.show').length === 0) {
+                $('body').removeClass('modal-open').css({
+                    'overflow': '',
+                    'padding-right': ''
+                });
+            }
+        });
+        
+        // 确保reminder-modal的滚动行为正常
+        $('#reminder-modal').on('shown.bs.modal', function () {
+            setTimeout(function() {
+                $('#reminder-modal .modal-body').css('overflow-y', 'auto');
+                $('#reminder-contacts-list').css('overflow-y', 'auto');
+            }, 100);
+        });
+    }
 </script>
 {% endblock %}
 
