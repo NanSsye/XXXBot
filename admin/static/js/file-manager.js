@@ -721,14 +721,19 @@ function loadFolderTree() {
                 rootLi.className = 'folder-item';
                 rootLi.dataset.path = '/';
                 
-                rootLi.innerHTML = `
-                    <span class="folder-toggle"><i class="bi bi-chevron-right"></i></span>
+                // 创建根文件夹的内容区域
+                const itemContent = document.createElement('div');
+                itemContent.className = 'folder-item-content';
+                itemContent.innerHTML = `
+                    <span class="folder-toggle"><i class="bi bi-chevron-down"></i></span>
                     <i class="bi bi-folder-fill file-icon-folder"></i>
                     <span>根目录</span>
                 `;
                 
+                rootLi.appendChild(itemContent);
+                
                 // 点击根目录
-                rootLi.addEventListener('click', (e) => {
+                itemContent.addEventListener('click', (e) => {
                     e.stopPropagation();
                     selectFolderTreeItem(rootLi);
                     loadFiles('/');
@@ -749,6 +754,15 @@ function loadFolderTree() {
                     });
                     
                     rootLi.appendChild(ul);
+                    
+                    // 添加展开/折叠事件
+                    const toggler = itemContent.querySelector('.folder-toggle');
+                    if (toggler) {
+                        toggler.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            rootLi.classList.toggle('expanded');
+                        });
+                    }
                 }
             } else {
                 console.error('加载文件夹树失败，无效的响应数据:', data);
@@ -777,11 +791,23 @@ function createFolderTreeItem(folder) {
     li.className = 'folder-item';
     li.dataset.path = folder.path;
     
-    li.innerHTML = `
-        <span class="folder-toggle"><i class="bi bi-chevron-right"></i></span>
+    // 文件夹项的基本结构，包含图标和名称
+    const itemContent = document.createElement('div');
+    itemContent.className = 'folder-item-content';
+    itemContent.innerHTML = `
+        <span class="folder-toggle"><i class="bi bi-chevron-down"></i></span>
         <i class="bi bi-folder-fill file-icon-folder"></i>
         <span>${folder.name}</span>
     `;
+    
+    li.appendChild(itemContent);
+    
+    // 点击文件夹项导航到该文件夹
+    itemContent.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectFolderTreeItem(li);
+        loadFiles(folder.path);
+    });
     
     // 如果有子文件夹，添加展开/折叠功能
     if (folder.children && folder.children.length > 0) {
@@ -795,39 +821,7 @@ function createFolderTreeItem(folder) {
             
             children.forEach(child => {
                 if (child.type === 'directory') {
-                    const childLi = document.createElement('li');
-                    childLi.className = 'folder-item';
-                    childLi.dataset.path = child.path;
-                    
-                    childLi.innerHTML = `
-                        <span class="folder-toggle"><i class="bi bi-chevron-right"></i></span>
-                        <i class="bi bi-folder-fill file-icon-folder"></i>
-                        <span>${child.name}</span>
-                    `;
-                    
-                    // 点击文件夹项导航到该文件夹
-                    childLi.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        selectFolderTreeItem(childLi);
-                        loadFiles(child.path);
-                    });
-                    
-                    // 如果有子文件夹，递归添加（有深度限制）
-                    if (child.children && child.children.length > 0) {
-                        const childUl = document.createElement('ul');
-                        addChildrenWithDepthLimit(child.children, childUl, depth + 1);
-                        childLi.appendChild(childUl);
-                        
-                        // 添加展开/折叠事件
-                        const toggler = childLi.querySelector('.folder-toggle');
-                        if (toggler) {
-                            toggler.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                                childLi.classList.toggle('expanded');
-                            });
-                        }
-                    }
-                    
+                    const childLi = createFolderTreeItem(child);
                     parent.appendChild(childLi);
                 }
             });
@@ -838,7 +832,7 @@ function createFolderTreeItem(folder) {
         li.appendChild(ul);
         
         // 添加展开/折叠事件
-        const toggler = li.querySelector('.folder-toggle');
+        const toggler = itemContent.querySelector('.folder-toggle');
         if (toggler) {
             toggler.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -846,13 +840,6 @@ function createFolderTreeItem(folder) {
             });
         }
     }
-    
-    // 点击文件夹项导航到该文件夹
-    li.addEventListener('click', (e) => {
-        e.stopPropagation();
-        selectFolderTreeItem(li);
-        loadFiles(folder.path);
-    });
     
     return li;
 }

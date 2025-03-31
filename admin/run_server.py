@@ -9,6 +9,7 @@ import sys
 import argparse
 import uvicorn
 import logging
+import tomllib
 from pathlib import Path
 
 # 设置日志级别
@@ -22,14 +23,45 @@ if current_dir not in sys.path:
     sys.path.append(current_dir)
     logger.debug(f"添加路径到sys.path: {current_dir}")
 
+# 从main_config.toml读取默认配置
+def get_default_config():
+    try:
+        main_dir = Path(current_dir).parent
+        config_path = main_dir / "main_config.toml"
+        if config_path.exists():
+            with open(config_path, "rb") as f:
+                config = tomllib.load(f)
+                admin_config = config.get("Admin", {})
+                return {
+                    "host": admin_config.get("host", "0.0.0.0"),
+                    "port": admin_config.get("port", 8080),
+                    "username": admin_config.get("username", "admin"),
+                    "password": admin_config.get("password", "admin"),
+                    "debug": admin_config.get("debug", False)
+                }
+    except Exception as e:
+        logger.error(f"读取main_config.toml出错: {e}")
+    
+    # 使用默认值
+    return {
+        "host": "0.0.0.0",
+        "port": 8080,
+        "username": "admin",
+        "password": "admin",
+        "debug": False
+    }
+
 if __name__ == "__main__":
+    # 获取默认配置
+    default_config = get_default_config()
+    
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="XYBotV2管理后台服务器")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="服务器监听地址")
-    parser.add_argument("--port", type=int, default=8080, help="服务器监听端口")
-    parser.add_argument("--username", type=str, default="admin", help="管理员用户名")
-    parser.add_argument("--password", type=str, default="admin", help="管理员密码")
-    parser.add_argument("--debug", action="store_true", help="调试模式")
+    parser.add_argument("--host", type=str, default=default_config["host"], help="服务器监听地址")
+    parser.add_argument("--port", type=int, default=default_config["port"], help="服务器监听端口")
+    parser.add_argument("--username", type=str, default=default_config["username"], help="管理员用户名")
+    parser.add_argument("--password", type=str, default=default_config["password"], help="管理员密码")
+    parser.add_argument("--debug", action="store_true", default=default_config["debug"], help="调试模式")
     
     args = parser.parse_args()
     

@@ -134,19 +134,29 @@
             list-style-type: none;
             padding-left: 20px;
             display: none;
+            margin-top: 5px;
         }
         
         .folder-item {
-            padding: 5px 0;
             cursor: pointer;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            display: flex;
-            align-items: center;
+            margin-bottom: 2px;
         }
         
-        .folder-item.active {
+        .folder-item-content {
+            display: flex;
+            align-items: center;
+            padding: 5px 0;
+            border-radius: 4px;
+        }
+        
+        .folder-item-content:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        
+        .folder-item.active > .folder-item-content {
             background-color: #e9ecef;
             font-weight: 500;
         }
@@ -165,8 +175,18 @@
             font-size: 12px;
         }
         
-        .folder-item.expanded > .folder-toggle i {
-            transform: rotate(90deg);
+        .folder-toggle i {
+            transform: rotate(-90deg);
+            transition: transform 0.2s;
+        }
+        
+        .folder-item.expanded > .folder-item-content .folder-toggle i {
+            transform: rotate(0deg);
+        }
+        
+        /* 确保子文件夹是垂直向下展开的 */
+        .folder-tree li {
+            position: relative;
         }
         
         /* 文件编辑器 */

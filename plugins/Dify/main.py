@@ -29,6 +29,8 @@ import shutil
 from PIL import Image
 import xml.etree.ElementTree as ET
 
+
+
 # 常量定义
 XYBOT_PREFIX = "-----老夏的金库-----\n"
 DIFY_ERROR_MESSAGE = "🙅对不起，Dify出现错误！\n"
@@ -279,7 +281,7 @@ class ModelConfig:
 class Dify(PluginBase):
     description = "Dify插件"
     author = "老夏的金库"
-    version = "1.3.1"
+    version = "1.3.2"  # 更新版本号
 
     def __init__(self):
         super().__init__()
@@ -352,6 +354,27 @@ class Dify(PluginBase):
                 logger.info(f"唤醒词 '{wakeup_word}' 成功绑定到模型 '{model_name}'")
         
         logger.info(f"唤醒词映射完成，共加载 {len(self.wakeup_word_to_model)} 个唤醒词")
+
+        # 加载配置文件
+        self.config_path = os.path.join(os.path.dirname(__file__), "config.toml")
+        logger.info(f"加载Dify插件配置文件：{self.config_path}")
+        
+        # 尝试获取API代理实例
+        self.api_proxy = None
+        if has_api_proxy:
+            try:
+                import sys
+                # 导入api_proxy实例
+                sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+                from admin.server import get_api_proxy
+                self.api_proxy = get_api_proxy()
+                if self.api_proxy:
+                    logger.info("成功获取API代理实例")
+                else:
+                    logger.warning("API代理实例获取失败，将使用直接连接")
+            except Exception as e:
+                logger.error(f"获取API代理实例失败: {e}")
+                logger.error(traceback.format_exc())
 
     def get_user_model(self, user_id: str) -> ModelConfig:
         """获取用户当前使用的模型"""
@@ -970,7 +993,6 @@ class Dify(PluginBase):
             logger.debug(f"开始调用 Dify API - 用户消息: {processed_query}")
             logger.debug(f"文件列表: {formatted_files}")
             conversation_id = self.db.get_llm_thread_id(message["FromWxid"], namespace="dify")
-            headers = {"Authorization": f"Bearer {model.api_key}", "Content-Type": "application/json"}
 
             user_wxid = message["SenderWxid"]
             try:
@@ -993,60 +1015,108 @@ class Dify(PluginBase):
                 "auto_generate_name": False,
             }
 
+            # 决定是使用API代理还是直接连接
+            use_api_proxy = self.api_proxy is not None and has_api_proxy
             logger.debug(f"发送请求到 Dify - URL: {model.base_url}/chat-messages, Payload: {json.dumps(payload)}")
-            ai_resp = ""
-            async with aiohttp.ClientSession(proxy=self.http_proxy) as session:
-                async with session.post(url=f"{model.base_url}/chat-messages", headers=headers, data=json.dumps(payload)) as resp:
-                    if resp.status in (200, 201):
-                        async for line in resp.content:
-                            line = line.decode("utf-8").strip()
-                            if not line or line == "event: ping":
-                                continue
-                            elif line.startswith("data: "):
-                                line = line[6:]
-                            try:
-                                resp_json = json.loads(line)
-                            except json.JSONDecodeError:
-                                logger.error(f"Dify返回的JSON解析错误: {line}")
-                                continue
-
-                            event = resp_json.get("event", "")
-                            if event == "message":
-                                ai_resp += resp_json.get("answer", "")
-                            elif event == "message_replace":
-                                ai_resp = resp_json.get("answer", "")
-                            elif event == "message_file":
-                                file_url = resp_json.get("url", "")
-                                await self.dify_handle_image(bot, message, file_url, model_config=model)
-                            elif event == "error":
-                                await self.dify_handle_error(bot, message,
-                                                            resp_json.get("task_id", ""),
-                                                            resp_json.get("message_id", ""),
-                                                            resp_json.get("status", ""),
-                                                            resp_json.get("code", ""),
-                                                            resp_json.get("message", ""))
-                        
-                        new_con_id = resp_json.get("conversation_id", "")
+            
+            if use_api_proxy:
+                # 使用API代理调用
+                logger.info(f"通过API代理调用Dify")
+                try:
+                    # 检查是否有对应的注册API
+                    base_url_without_v1 = model.base_url.rstrip("/v1")
+                    endpoint = model.base_url.replace(base_url_without_v1, "")
+                    endpoint = endpoint + "/chat-messages"
+                    
+                    # 准备请求
+                    api_response = await self.api_proxy.call_api(
+                        api_type="dify",
+                        endpoint=endpoint,
+                        data=payload,
+                        method="POST",
+                        headers={"Authorization": f"Bearer {model.api_key}"}
+                    )
+                    
+                    if api_response.get("success") is False:
+                        logger.error(f"API代理调用失败: {api_response.get('error')}")
+                        # 失败时回退到直接调用
+                        use_api_proxy = False
+                    else:
+                        # API代理不支持流式响应，处理非流式返回的结果
+                        ai_resp = api_response.get("data", {}).get("answer", "")
+                        new_con_id = api_response.get("data", {}).get("conversation_id", "")
                         if new_con_id and new_con_id != conversation_id:
                             self.db.save_llm_thread_id(message["FromWxid"], new_con_id, "dify")
-                        ai_resp = ai_resp.rstrip()
-                        logger.debug(f"Dify响应: {ai_resp}")
-                    elif resp.status == 404:
-                        logger.warning("会话ID不存在，重置会话ID并重试")
-                        self.db.save_llm_thread_id(message["FromWxid"], "", "dify")
-                        # 重要：在递归调用时必须传递原始模型，不要重新选择
-                        return await self.dify(bot, message, processed_query, files=files, specific_model=model)
-                    elif resp.status == 400:
-                        return await self.handle_400(bot, message, resp)
-                    elif resp.status == 500:
-                        return await self.handle_500(bot, message)
-                    else:
-                        return await self.handle_other_status(bot, message, resp)
+                        logger.debug(f"API代理返回: {ai_resp}")
+                        
+                        if ai_resp:
+                            await self.dify_handle_text(bot, message, ai_resp, model)
+                        else:
+                            logger.warning("API代理未返回有效响应")
+                            # 回退到直接调用
+                            use_api_proxy = False
+                except Exception as e:
+                    logger.error(f"API代理调用异常: {e}")
+                    logger.error(traceback.format_exc())
+                    # 出错时回退到直接调用
+                    use_api_proxy = False
+            
+            # 如果API代理不可用或调用失败，使用直接连接
+            if not use_api_proxy:
+                headers = {"Authorization": f"Bearer {model.api_key}", "Content-Type": "application/json"}
+                ai_resp = ""
+                async with aiohttp.ClientSession(proxy=self.http_proxy) as session:
+                    async with session.post(url=f"{model.base_url}/chat-messages", headers=headers, data=json.dumps(payload)) as resp:
+                        if resp.status in (200, 201):
+                            async for line in resp.content:
+                                line = line.decode("utf-8").strip()
+                                if not line or line == "event: ping":
+                                    continue
+                                elif line.startswith("data: "):
+                                    line = line[6:]
+                                try:
+                                    resp_json = json.loads(line)
+                                except json.JSONDecodeError:
+                                    logger.error(f"Dify返回的JSON解析错误: {line}")
+                                    continue
 
-            if ai_resp:
-                await self.dify_handle_text(bot, message, ai_resp, model)
-            else:
-                logger.warning("Dify未返回有效响应")
+                                event = resp_json.get("event", "")
+                                if event == "message":
+                                    ai_resp += resp_json.get("answer", "")
+                                elif event == "message_replace":
+                                    ai_resp = resp_json.get("answer", "")
+                                elif event == "message_file":
+                                    file_url = resp_json.get("url", "")
+                                    await self.dify_handle_image(bot, message, file_url, model_config=model)
+                                elif event == "error":
+                                    await self.dify_handle_error(bot, message,
+                                                                resp_json.get("task_id", ""),
+                                                                resp_json.get("message_id", ""),
+                                                                resp_json.get("status", ""),
+                                                                resp_json.get("code", ""),
+                                                                resp_json.get("message", ""))
+                            
+                            new_con_id = resp_json.get("conversation_id", "")
+                            if new_con_id and new_con_id != conversation_id:
+                                self.db.save_llm_thread_id(message["FromWxid"], new_con_id, "dify")
+                            ai_resp = ai_resp.rstrip()
+                            logger.debug(f"Dify响应: {ai_resp}")
+                        elif resp.status == 404:
+                            logger.warning("会话ID不存在，重置会话ID并重试")
+                            self.db.save_llm_thread_id(message["FromWxid"], "", "dify")
+                            # 重要：在递归调用时必须传递原始模型，不要重新选择
+                            return await self.dify(bot, message, processed_query, files=files, specific_model=model)
+                        elif resp.status == 400:
+                            return await self.handle_400(bot, message, resp)
+                        elif resp.status == 500:
+                            return await self.handle_500(bot, message)
+                        else:
+                            return await self.handle_other_status(bot, message, resp)
+
+                if ai_resp:
+                    await self.dify_handle_text(bot, message, ai_resp, model)
+                else:
+                    logger.warning("Dify未返回有效响应")
         except Exception as e:
             logger.error(f"Dify API 调用失败: {e}")
             await self.hendle_exceptions(bot, message, model_config=model)
@@ -1085,11 +1155,21 @@ class Dify(PluginBase):
 
             # 使用传入的model_config，如果没有则使用默认模型
             model = model_config or self.current_model
+            
+            # 决定是使用API代理还是直接连接
+            use_api_proxy = self.api_proxy is not None and has_api_proxy and False  # 文件上传暂不使用API代理
+            
+            if use_api_proxy:
+                # API代理目前不支持文件上传，使用直接连接
+                logger.info("文件上传目前不支持API代理，使用直接连接")
+                use_api_proxy = False
+            
+            # 使用直接连接上传文件    
             headers = {"Authorization": f"Bearer {model.api_key}"}
             formdata = aiohttp.FormData()
             formdata.add_field("file", file_content, 
-                              filename=f"file.{mime_type.split('/')[-1]}", 
-                              content_type=mime_type)
+                            filename=f"file.{mime_type.split('/')[-1]}", 
+                            content_type=mime_type)
             formdata.add_field("user", user)
 
             url = f"{model.base_url}/files/upload"

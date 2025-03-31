@@ -46,6 +46,14 @@ def start_admin_server(config):
         
         # 提前启动管理后台服务
         logger.info(f"启动管理后台，地址: {admin_host}:{admin_port}")
+        logger.info(f"管理员账号: {admin_username}, 密码从配置文件读取")
+        
+        # 标记当前正在启动的管理后台实例
+        admin_status_file = Path("admin/admin_server_status.txt")
+        with open(admin_status_file, "w") as f:
+            f.write(f"启动时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"主机: {admin_host}:{admin_port}\n")
+            f.write(f"状态: 正在启动\n")
         
         server_thread = start_server(
             host_arg=admin_host,
@@ -56,6 +64,12 @@ def start_admin_server(config):
             bot=None  # 暂时没有bot实例
         )
         
+        # 更新状态文件
+        with open(admin_status_file, "w") as f:
+            f.write(f"启动时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"主机: {admin_host}:{admin_port}\n")
+            f.write(f"状态: 运行中\n")
+            
         logger.success(f"管理后台已启动: http://{admin_host}:{admin_port}")
         return server_thread
     except Exception as e:

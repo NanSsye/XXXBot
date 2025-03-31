@@ -722,10 +722,10 @@ function loadCachedPluginMarket() {
 }
 
 // 渲染插件市场列表
-function renderMarketPlugins(plugins) {
+function renderMarketPlugins(marketPluginsList) {
     const marketList = document.getElementById('market-list');
     
-    if (plugins.length === 0) {
+    if (marketPluginsList.length === 0) {
         marketList.innerHTML = `
             <div class="col">
                 <div class="alert alert-info text-center">
@@ -739,7 +739,7 @@ function renderMarketPlugins(plugins) {
     
     let html = '';
     
-    plugins.forEach((plugin, index) => {
+    marketPluginsList.forEach((plugin, index) => {
         // 将标签字符串转换为数组
         const tags = plugin.tags ? plugin.tags.split(',') : [];
         
@@ -748,6 +748,9 @@ function renderMarketPlugins(plugins) {
         tags.forEach(tag => {
             tagsHtml += `<span class="plugin-tag">${tag.trim()}</span>`;
         });
+        
+        // 检查插件是否已安装
+        const isInstalled = plugins && Array.isArray(plugins) && plugins.some(p => p.name === plugin.name);
         
         // 生成渐变色背景（根据插件名生成一个稳定的颜色）
         const colors = [
@@ -773,6 +776,7 @@ function renderMarketPlugins(plugins) {
                                 <h5 class="card-title mb-0">${plugin.name}</h5>
                                 <div class="text-muted small">v${plugin.version}</div>
                             </div>
+                            ${isInstalled ? '<span class="badge bg-success ms-2">已安装</span>' : ''}
                         </div>
                         <p class="card-text">${plugin.description}</p>
                         <div class="mb-3">
@@ -783,7 +787,7 @@ function renderMarketPlugins(plugins) {
                                 <i class="bi bi-person me-1"></i>${plugin.author}
                             </div>
                             <button class="btn btn-sm btn-outline-primary btn-install-plugin" data-plugin-index="${index}">
-                                <i class="bi bi-download me-1"></i>安装
+                                <i class="bi ${isInstalled ? 'bi-check-circle' : 'bi-download'} me-1"></i>${isInstalled ? '已安装' : '安装'}
                             </button>
                         </div>
                     </div>

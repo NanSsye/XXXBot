@@ -25,13 +25,8 @@ wetty --port 3000 --host 0.0.0.0 --allow-iframe --base /wetty --command /bin/bas
 echo "等待WeTTy服务可用..."
 sleep 3
 
-# 启动管理后台服务器
-echo "启动管理后台服务器..."
-python admin/run_server.py --host 0.0.0.0 --port 8080 &
-
-# 等待管理后台启动
-sleep 2
-echo "管理后台已启动在端口9090"
+# 注释: 不再单独启动管理后台服务器，由main.py统一管理
+# 管理后台将由main.py自动启动，使用main_config.toml中配置的端口
 
 # 启动主应用
 echo "启动XXXBot主应用..."

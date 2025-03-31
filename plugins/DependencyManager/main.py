@@ -17,6 +17,7 @@ from loguru import logger
 import requests
 import zipfile
 import io
+import asyncio
 
 from WechatAPI import WechatAPIClient
 from utils.decorators import *
@@ -34,7 +35,7 @@ class DependencyManager(PluginBase):
         super().__init__()
         
         # 记录插件开始初始化
-        logger.critical("[DependencyManager] 开始加载插件")
+        logger.info("[DependencyManager] 开始加载插件")
         
         # 获取配置文件路径
         self.plugin_dir = os.path.dirname(os.path.abspath(__file__))
@@ -42,28 +43,28 @@ class DependencyManager(PluginBase):
         
         # 获取主项目根目录 - 使用相对路径 - _data/plugins
         self.root_dir = os.path.dirname(self.plugin_dir)  # 指向_data/plugins目录
-        logger.critical(f"[DependencyManager] 根目录设置为: {self.root_dir}")
+        logger.debug(f"[DependencyManager] 根目录设置为: {self.root_dir}")
             
         # 插件目录就是根目录本身
         self.plugins_dir = self.root_dir
-        logger.critical(f"[DependencyManager] 插件目录设置为: {self.plugins_dir}")
+        logger.debug(f"[DependencyManager] 插件目录设置为: {self.plugins_dir}")
         
         # 加载配置
         self.load_config()
         
-        logger.critical(f"[DependencyManager] 插件初始化完成, 启用状态: {self.enable}, 优先级: 80")
+        logger.info(f"[DependencyManager] 插件初始化完成, 启用状态: {self.enabled}, 优先级: 80")
         
     def load_config(self):
         """加载配置文件"""
         try:
-            logger.critical(f"[DependencyManager] 尝试从 {self.config_path} 加载配置")
+            logger.debug(f"[DependencyManager] 尝试从 {self.config_path} 加载配置")
             
             with open(self.config_path, "rb") as f:
                 config = tomllib.load(f)
                 
             # 读取基本配置
             basic_config = config.get("basic", {})
-            self.enable = basic_config.get("enable", False)
+            self.enabled = basic_config.get("enable", False)
             self.admin_list = basic_config.get("admin_list", [])
             self.allowed_packages = basic_config.get("allowed_packages", [])
             self.check_allowed = basic_config.get("check_allowed", False)
@@ -78,14 +79,14 @@ class DependencyManager(PluginBase):
             # 读取插件安装配置 - 使用唤醒词
             self.github_install_prefix = cmd_config.get("github_install", "github")
             
-            logger.critical(f"[DependencyManager] 配置加载成功")
-            logger.critical(f"[DependencyManager] 启用状态: {self.enable}")
-            logger.critical(f"[DependencyManager] 管理员列表: {self.admin_list}")
-            logger.critical(f"[DependencyManager] GitHub前缀: '{self.github_install_prefix}'")
+            logger.info(f"[DependencyManager] 配置加载成功")
+            logger.debug(f"[DependencyManager] 启用状态: {self.enabled}")
+            logger.debug(f"[DependencyManager] 管理员列表: {self.admin_list}")
+            logger.debug(f"[DependencyManager] GitHub前缀: '{self.github_install_prefix}'")
             
         except Exception as e:
             logger.error(f"[DependencyManager] 加载配置失败: {str(e)}")
-            self.enable = False
+            self.enabled = False
             self.admin_list = []
             self.allowed_packages = []
             self.check_allowed = False
@@ -96,42 +97,44 @@ class DependencyManager(PluginBase):
             self.github_install_prefix = "github"
     
     @on_text_message(priority=80)
-    async def handle_text_message(self, bot: WechatAPIClient, message: dict):
-        """处理文本消息，检查是否为依赖管理命令"""
-        # 在最开始就记录收到消息，即使未启用也记录，便于调试
-        logger.critical(f"[DependencyManager] 收到消息调用: {message.get('Content', '')}")
-        
-        if not self.enable:
-            logger.debug("[DependencyManager] 插件未启用，跳过处理")
-            return True  # 插件未启用，允许其他插件处理
+    async def handle_text_message(self, bot: WechatAPIClient, message: dict) -> bool:
+        """处理文本消息"""
+        if not self.enabled:
+            # 快速检查消息是否是命令，如果不是命令且插件未启用，则直接返回
+            content = message.get("Content", "").strip()
+            if not (content.startswith("!pip") or content.startswith("!import") or 
+                   content.lower().startswith(self.github_install_prefix.lower())):
+                return True
             
-        # 获取消息内容和发送者 - 修改为使用正确的键名
         content = message.get("Content", "").strip()
-        from_user = message.get("SenderWxid", "")
+        sender_id = message.get("SenderWxid", "")
         conversation_id = message.get("FromWxid", "")
         
-        # 记录所有消息，用于调试
-        logger.info(f"[DependencyManager] 收到消息: '{content}'")
+        # 快速检查是否是命令
+        is_command = (content.startswith("!pip") or content.startswith("!import") or 
+                     content.lower().startswith(self.github_install_prefix.lower()))
+        
+        # 只有命令才记录日志
+        if is_command:
+            # 检查是否管理员，只有管理员才记录用户ID信息
+            is_admin = sender_id in self.admin_list
+            if is_admin:
+                logger.debug(f"[DependencyManager] 收到管理员({sender_id})在会话({conversation_id})中的命令: {content}")
+            else:
+                logger.debug(f"[DependencyManager] 收到非管理员用户的命令: {content}")
+        
+        # 如果不是命令且插件未启用，直接返回
+        if not is_command and not self.enabled:
+            return True
 
-        # 检查是否为管理员
-        sender_id = from_user
-        if not sender_id and "IsGroup" in message and message["IsGroup"]:
-            # 如果是群聊消息，则SenderWxid应该已经包含发送者ID
-            logger.debug(f"[DependencyManager] 群消息，发送者ID: {sender_id}")
-        
-        # 记录消息处理信息
-        logger.info(f"[DependencyManager] 发送者ID: {sender_id}")
-        logger.info(f"[DependencyManager] 会话ID: {conversation_id}")
-        logger.info(f"[DependencyManager] GitHub安装前缀: {self.github_install_prefix}")
-            
-        # 检查是否为管理员
-        if sender_id not in self.admin_list:
-            logger.critical(f"[DependencyManager] 用户 {sender_id} 不在管理员列表中")
-            logger.critical(f"[DependencyManager] 当前管理员列表: {self.admin_list}")
-            return True  # 非管理员，允许其他插件处理
-        
-        logger.critical(f"[DependencyManager] 管理员 {sender_id} 发送命令: {content}")
-        
+        # 1. 检查是否是管理员
+        if content.startswith("!pip") or content.startswith("!import") or content.lower().startswith(self.github_install_prefix.lower()):
+            is_admin = sender_id in self.admin_list
+            if not is_admin:
+                logger.info(f"[DependencyManager] 非管理员用户({sender_id})尝试执行命令: {content}")
+                await bot.send_text_message(conversation_id, "🚫 抱歉，只有管理员才能执行此命令")
+                return True
+                
         # ====================== 命令处理部分 ======================
         # 按照优先级排序，先处理特殊命令，再处理标准命令模式
         
@@ -145,7 +148,6 @@ class DependencyManager(PluginBase):
         
         # 2.1 检查是否明确以GitHub前缀开头 - 要求明确的安装意图
         starts_with_prefix = content.lower().startswith(self.github_install_prefix.lower())
-        logger.critical(f"[DependencyManager] 检查是否以'{self.github_install_prefix}'开头: {starts_with_prefix}, 内容: '{content}'")
         
         # 2.2 GitHub快捷命令 - GeminiImage特殊处理
         if starts_with_prefix and (content.strip().lower() == f"{self.github_install_prefix} gemini" or 
@@ -182,10 +184,10 @@ class DependencyManager(PluginBase):
             
         # 2.4 标准GitHub安装命令处理 - 必须以明确的前缀开头
         if starts_with_prefix:
-            logger.critical(f"[DependencyManager] 检测到GitHub安装命令: {content}")
+            logger.info(f"[DependencyManager] 检测到GitHub安装命令: {content}")
             # 获取前缀后面的内容
             command_content = content[len(self.github_install_prefix):].strip()
-            logger.critical(f"[DependencyManager] 提取的命令内容: '{command_content}'")
+            logger.debug(f"[DependencyManager] 提取的命令内容: '{command_content}'")
             
             # 处理快捷命令 - gemini
             if command_content.lower() == "gemini" or command_content.lower() == "geminiimage":
@@ -310,155 +312,95 @@ class DependencyManager(PluginBase):
         except Exception as e:
             await bot.send_text_message(chat_id, f"❌ 执行安装命令时出错: {str(e)}")
     
-    async def _handle_github_install(self, bot: WechatAPIClient, chat_id: str, github_url: str):
-        """处理从Github安装插件的命令"""
-        logger.critical(f"[DependencyManager] 开始处理GitHub插件安装，URL: {github_url}")
+    async def _handle_github_install(self, bot: WechatAPIClient, conversation_id: str, git_url: str):
+        """处理GitHub项目安装"""
+        logger.info(f"[DependencyManager] 开始从GitHub安装: {git_url}")
         
-        # 处理各种GitHub URL格式
-        if not github_url:
-            logger.warning("[DependencyManager] GitHub URL为空")
-            await bot.send_text_message(chat_id, "请提供有效的GitHub仓库URL，例如: github https://github.com/用户名/插件名.git")
-            return
+        # 向用户发送开始安装的消息
+        await bot.send_text_message(conversation_id, f"⏳ 正在从GitHub克隆并安装: {git_url}...")
+        
+        # 1. 创建临时目录
+        temp_dir = tempfile.mkdtemp(prefix="wechat_bot_plugin_")
+        logger.debug(f"[DependencyManager] 创建临时目录: {temp_dir}")
+        
+        try:
+            # 2. 克隆仓库
+            clone_cmd = f"git clone {git_url} {temp_dir}"
+            logger.debug(f"[DependencyManager] 执行Git克隆命令: {clone_cmd}")
             
-        # 标准化GitHub URL
-        # 处理不包含https://的情况
-        if not github_url.startswith("http"):
-            if github_url.startswith("github.com"):
-                github_url = "https://" + github_url
-            elif "github.com" in github_url:
-                # 尝试提取用户名/仓库名
-                match = re.search(r'(?:github\.com[:/])?([^/\s]+/[^/\s]+)(?:\.git)?', github_url)
-                if match:
-                    repo_path = match.group(1)
-                    github_url = f"https://github.com/{repo_path}"
-                else:
-                    github_url = "https://github.com/" + github_url.strip()
-        
-        logger.critical(f"[DependencyManager] 标准化后的URL: {github_url}")
-        
-        # 验证URL格式
-        if not github_url.startswith("https://github.com"):
-            logger.warning(f"[DependencyManager] 无效的GitHub URL: {github_url}")
-            await bot.send_text_message(chat_id, "请提供有效的GitHub仓库URL，例如: github https://github.com/用户名/插件名.git")
-            return
-        
-        # 确保URL以.git结尾
-        if github_url.endswith(".git"):
-            github_url = github_url[:-4]  # 移除.git后缀，为了构建zip下载链接
-        
-        # 从URL提取插件名称和仓库信息
-        repo_match = re.search(r'https://github\.com/([^/]+)/([^/]+)$', github_url)
-        if not repo_match:
-            logger.warning(f"[DependencyManager] 无法从URL中提取仓库信息: {github_url}")
-            await bot.send_text_message(chat_id, f"⚠️ 无法从URL中提取仓库信息: {github_url}")
-            return
-        
-        user_name = repo_match.group(1)
-        repo_name = repo_match.group(2)
-        plugin_name = repo_name
-        
-        # 使用相对路径，直接在plugins_dir下创建插件目录
-        plugin_target_dir = os.path.join(self.plugins_dir, plugin_name)
-        logger.critical(f"[DependencyManager] 提取到用户名: {user_name}, 仓库名: {repo_name}")
-        logger.critical(f"[DependencyManager] 目标目录: {plugin_target_dir}")
-        
-        # 检查插件目录是否已存在
-        if os.path.exists(plugin_target_dir):
-            logger.info(f"[DependencyManager] 插件目录已存在，尝试更新")
-            await bot.send_text_message(chat_id, f"⚠️ 插件 {plugin_name} 目录已存在，尝试更新...")
-            try:
-                # 尝试使用git更新现有插件
-                git_installed = self._check_git_installed()
-                if git_installed:
-                    os.chdir(plugin_target_dir)
-                    logger.info(f"[DependencyManager] 执行git pull操作于: {plugin_target_dir}")
-                    process = subprocess.Popen(
-                        ["git", "pull", "origin", "main"],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
-                    )
-                    stdout, stderr = process.communicate()
-                    logger.info(f"[DependencyManager] Git pull结果：退出码 {process.returncode}")
-                    logger.info(f"[DependencyManager] Stdout: {stdout}")
-                    logger.info(f"[DependencyManager] Stderr: {stderr}")
-                    
-                    if process.returncode == 0:
-                        await bot.send_text_message(chat_id, f"✅ 成功更新插件 {plugin_name}!\n\n{stdout}")
-                        await self._install_plugin_requirements(bot, chat_id, plugin_target_dir)
-                    else:
-                        logger.error(f"[DependencyManager] 更新插件失败: {stderr}")
-                        await bot.send_text_message(chat_id, f"❌ 更新插件失败: {stderr}")
-                else:
-                    # 使用ZIP方式更新
-                    await bot.send_text_message(chat_id, f"⚠️ Git未安装，尝试通过下载ZIP方式更新...")
-                    success = await self._download_github_zip(bot, chat_id, user_name, repo_name, plugin_target_dir, is_update=True)
-                    if success:
-                        await self._install_plugin_requirements(bot, chat_id, plugin_target_dir)
-            except Exception as e:
-                logger.exception(f"[DependencyManager] 更新插件时出错")
-                await bot.send_text_message(chat_id, f"❌ 更新插件时出错: {str(e)}")
-            return
-        
-        # 创建临时目录
-        with tempfile.TemporaryDirectory() as temp_dir:
-            try:
-                logger.info(f"[DependencyManager] 创建临时目录: {temp_dir}")
-                await bot.send_text_message(chat_id, f"🔄 正在从GitHub下载插件 {plugin_name}...")
+            process = await asyncio.create_subprocess_shell(
+                clone_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode()
+                logger.error(f"[DependencyManager] Git克隆失败: {error_msg}")
+                await bot.send_text_message(conversation_id, f"❌ Git克隆失败: {error_msg}")
+                return
                 
-                # 检查git是否安装，决定使用哪种下载方式
-                git_installed = self._check_git_installed()
-                logger.info(f"[DependencyManager] Git命令安装状态: {git_installed}")
-                
-                if git_installed:
-                    # 使用git克隆仓库
-                    logger.info(f"[DependencyManager] 使用git克隆: {github_url}.git 到 {temp_dir}")
-                    process = subprocess.Popen(
-                        ["git", "clone", f"{github_url}.git", temp_dir],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
-                    )
-                    stdout, stderr = process.communicate()
-                    logger.info(f"[DependencyManager] Git clone结果：退出码 {process.returncode}")
-                    logger.info(f"[DependencyManager] Stdout: {stdout}")
-                    logger.info(f"[DependencyManager] Stderr: {stderr}")
-                    
-                    if process.returncode != 0:
-                        logger.error(f"[DependencyManager] Git克隆失败，尝试使用ZIP方式下载")
-                        success = await self._download_github_zip(bot, chat_id, user_name, repo_name, temp_dir)
-                        if not success:
-                            return
-                else:
-                    # 使用ZIP方式下载
-                    logger.info(f"[DependencyManager] Git未安装，使用ZIP方式下载")
-                    success = await self._download_github_zip(bot, chat_id, user_name, repo_name, temp_dir)
-                    if not success:
-                        return
-                
-                # 克隆或下载成功，复制到插件目录
-                logger.info(f"[DependencyManager] 创建插件目录: {plugin_target_dir}")
-                os.makedirs(plugin_target_dir, exist_ok=True)
-                
-                # 复制所有文件
-                logger.info(f"[DependencyManager] 开始从临时目录复制文件到插件目录")
-                for item in os.listdir(temp_dir):
-                    s = os.path.join(temp_dir, item)
-                    d = os.path.join(plugin_target_dir, item)
-                    logger.info(f"[DependencyManager] 复制: {s} 到 {d}")
-                    if os.path.isdir(s):
-                        shutil.copytree(s, d, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(s, d)
-                
-                logger.info(f"[DependencyManager] 文件复制完成")
-                await bot.send_text_message(chat_id, f"✅ 成功下载插件 {plugin_name}!")
+            logger.debug("[DependencyManager] Git克隆成功")
+            
+            # 3. 检查requirements.txt并安装依赖
+            req_file = os.path.join(temp_dir, "requirements.txt")
+            if os.path.exists(req_file):
+                logger.debug(f"[DependencyManager] 发现requirements.txt，开始安装依赖")
+                await bot.send_text_message(conversation_id, "📦 正在安装Python依赖...")
                 
                 # 安装依赖
-                await self._install_plugin_requirements(bot, chat_id, plugin_target_dir)
+                install_cmd = f"{sys.executable} -m pip install -r {req_file}"
+                logger.debug(f"[DependencyManager] 执行依赖安装命令: {install_cmd}")
+                
+                process = await asyncio.create_subprocess_shell(
+                    install_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
+                    error_msg = stderr.decode()
+                    logger.error(f"[DependencyManager] 依赖安装失败: {error_msg}")
+                    await bot.send_text_message(conversation_id, f"⚠️ 依赖安装可能存在问题: {error_msg}")
+                else:
+                    logger.debug("[DependencyManager] 依赖安装成功")
+            
+            # 4. 将插件复制到plugins目录
+            # 获取仓库名称（通常是URL的最后一部分，去掉.git后缀）
+            repo_name = git_url.split("/")[-1]
+            if repo_name.endswith(".git"):
+                repo_name = repo_name[:-4]
+                
+            logger.debug(f"[DependencyManager] 仓库名称: {repo_name}")
+            
+            # 目标插件目录
+            target_dir = os.path.join("plugins", repo_name)
+            
+            # 如果目标目录已存在，先删除
+            if os.path.exists(target_dir):
+                logger.debug(f"[DependencyManager] 目标目录已存在，正在删除: {target_dir}")
+                shutil.rmtree(target_dir)
+            
+            # 复制临时目录内容到目标目录
+            logger.debug(f"[DependencyManager] 复制文件从 {temp_dir} 到 {target_dir}")
+            shutil.copytree(temp_dir, target_dir)
+            
+            # 5. 通知成功
+            logger.info(f"[DependencyManager] 插件安装成功: {repo_name}")
+            await bot.send_text_message(conversation_id, f"✅ 插件 {repo_name} 安装成功！重启机器人后生效。")
+            
+        except Exception as e:
+            logger.error(f"[DependencyManager] 安装过程出错: {str(e)}")
+            await bot.send_text_message(conversation_id, f"❌ 安装失败: {str(e)}")
+        finally:
+            # 6. 清理临时目录
+            try:
+                logger.debug(f"[DependencyManager] 清理临时目录: {temp_dir}")
+                shutil.rmtree(temp_dir)
             except Exception as e:
-                logger.exception(f"[DependencyManager] 安装插件时出错")
-                await bot.send_text_message(chat_id, f"❌ 安装插件时出错: {str(e)}")
+                logger.error(f"[DependencyManager] 清理临时目录失败: {str(e)}")
     
     def _check_git_installed(self):
         """检查git命令是否可用"""
@@ -479,7 +421,7 @@ class DependencyManager(PluginBase):
         try:
             # 构建ZIP下载链接
             zip_url = f"https://github.com/{user_name}/{repo_name}/archive/refs/heads/main.zip"
-            logger.critical(f"[DependencyManager] 开始下载ZIP: {zip_url}")
+            logger.debug(f"[DependencyManager] 开始下载ZIP: {zip_url}")
             
             # 发送下载状态
             await bot.send_text_message(chat_id, f"📥 正在从GitHub下载ZIP文件: {zip_url}")
@@ -489,7 +431,7 @@ class DependencyManager(PluginBase):
             if response.status_code != 200:
                 # 尝试使用master分支
                 zip_url = f"https://github.com/{user_name}/{repo_name}/archive/refs/heads/master.zip"
-                logger.critical(f"[DependencyManager] 尝试下载master分支: {zip_url}")
+                logger.debug(f"[DependencyManager] 尝试下载master分支: {zip_url}")
                 response = requests.get(zip_url, timeout=30)
                 
             if response.status_code != 200:
@@ -498,14 +440,14 @@ class DependencyManager(PluginBase):
                 return False
                 
             # 解压ZIP文件
-            logger.critical(f"[DependencyManager] 下载完成，文件大小: {len(response.content)} 字节")
-            logger.critical(f"[DependencyManager] 解压ZIP文件到: {target_dir}")
+            logger.debug(f"[DependencyManager] 下载完成，文件大小: {len(response.content)} 字节")
+            logger.debug(f"[DependencyManager] 解压ZIP文件到: {target_dir}")
             
             z = zipfile.ZipFile(io.BytesIO(response.content))
             
             # 检查ZIP文件内容
             zip_contents = z.namelist()
-            logger.critical(f"[DependencyManager] ZIP文件内容: {', '.join(zip_contents[:5])}...")
+            logger.debug(f"[DependencyManager] ZIP文件内容: {', '.join(zip_contents[:5])}...")
             
             if is_update:
                 # 更新时先备份配置文件
@@ -745,3 +687,67 @@ class DependencyManager(PluginBase):
         """插件禁用时的清理工作"""
         await super().on_disable()
         logger.info("[DependencyManager] 插件已禁用") 
+
+    async def _install_pip_package(self, bot: WechatAPIClient, conversation_id: str, package_name: str):
+        """安装pip包"""
+        # 检查包名是否在允许列表中
+        if self.allowed_packages and package_name.lower() not in [p.lower() for p in self.allowed_packages]:
+            logger.warning(f"[DependencyManager] 尝试安装未授权的包: {package_name}")
+            await bot.send_text_message(conversation_id, f"🚫 包 {package_name} 不在允许安装列表中")
+            return
+            
+        logger.info(f"[DependencyManager] 开始安装pip包: {package_name}")
+        await bot.send_text_message(conversation_id, f"⏳ 正在安装 {package_name}...")
+        
+        cmd = f"{sys.executable} -m pip install {package_name}"
+        logger.debug(f"[DependencyManager] 执行命令: {cmd}")
+        
+        try:
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                error_message = stderr.decode()
+                logger.error(f"[DependencyManager] 安装失败: {error_message}")
+                await bot.send_text_message(conversation_id, f"❌ 安装失败: {error_message[:200]}")
+            else:
+                output = stdout.decode()
+                logger.info(f"[DependencyManager] 包 {package_name} 安装成功")
+                logger.debug(f"[DependencyManager] 安装输出: {output}")
+                await bot.send_text_message(conversation_id, f"✅ 包 {package_name} 安装成功！")
+        except Exception as e:
+            logger.error(f"[DependencyManager] 安装过程异常: {str(e)}")
+            await bot.send_text_message(conversation_id, f"❌ 安装过程发生错误: {str(e)}")
+
+    async def _import_package(self, bot: WechatAPIClient, conversation_id: str, package_name: str):
+        """测试导入包"""
+        logger.info(f"[DependencyManager] 测试导入包: {package_name}")
+        await bot.send_text_message(conversation_id, f"🔍 正在测试导入 {package_name}...")
+        
+        try:
+            # 创建一个新的Python进程来测试导入
+            cmd = f"{sys.executable} -c \"import {package_name}; print('Package version:', getattr({package_name}, '__version__', 'unknown'))\""
+            logger.debug(f"[DependencyManager] 执行导入测试命令: {cmd}")
+            
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                error_message = stderr.decode()
+                logger.warning(f"[DependencyManager] 导入失败: {error_message}")
+                await bot.send_text_message(conversation_id, f"❌ 导入失败: {error_message[:200]}")
+            else:
+                output = stdout.decode().strip()
+                logger.info(f"[DependencyManager] 导入成功: {output}")
+                await bot.send_text_message(conversation_id, f"✅ 导入成功: {output}")
+        except Exception as e:
+            logger.error(f"[DependencyManager] 导入测试异常: {str(e)}")
+            await bot.send_text_message(conversation_id, f"❌ 导入测试发生错误: {str(e)}") 

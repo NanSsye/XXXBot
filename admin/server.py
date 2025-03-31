@@ -24,6 +24,13 @@ from itsdangerous import URLSafeSerializer
 from functools import wraps
 import websockets
 
+# 导入API管理中心
+try:
+    from api_manager import APIManagerDB, get_api_proxy, api_manager_router
+    has_api_manager = True
+except ImportError:
+    has_api_manager = False
+
 from loguru import logger
 import psutil
 import platform
@@ -90,18 +97,47 @@ config = {
 # WebSocket连接
 active_connections: List[WebSocket] = []
 
+# 全局变量，用于跟踪服务器是否已启动
+SERVER_RUNNING = False
+SERVER_THREAD = None
+
 # 加载配置
 def load_config():
     global config
     try:
+        # 优先从main_config.toml读取配置
+        main_config_path = os.path.join(os.path.dirname(current_dir), "main_config.toml")
+        if os.path.exists(main_config_path):
+            with open(main_config_path, "rb") as f:
+                import tomllib
+                main_config = tomllib.load(f)
+                if "Admin" in main_config:
+                    admin_config = main_config["Admin"]
+                    # 更新配置
+                    if "host" in admin_config:
+                        config["host"] = admin_config["host"]
+                    if "port" in admin_config:
+                        config["port"] = admin_config["port"]
+                    if "username" in admin_config:
+                        config["username"] = admin_config["username"]
+                    if "password" in admin_config:
+                        config["password"] = admin_config["password"]
+                    if "debug" in admin_config:
+                        config["debug"] = admin_config["debug"]
+                    logger.info(f"从main_config.toml加载管理后台配置: {main_config_path}")
+                    return
+        
+        # 如果main_config.toml不存在或没有Admin部分，尝试从config.json加载
         config_path = os.path.join(current_dir, "config.json")
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 loaded_config = json.load(f)
                 config.update(loaded_config)
-                logger.info(f"管理后台配置已加载: {config_path}")
+                logger.info(f"从config.json加载管理后台配置: {config_path}")
+                logger.warning("建议将配置迁移到main_config.toml中")
     except Exception as e:
         logger.error(f"加载管理后台配置失败: {str(e)}")
+        logger.warning("使用默认配置")
 
 # 安全验证
 def verify_credentials(credentials: HTTPBasicCredentials):
@@ -2919,7 +2955,75 @@ except:
                 status_code=500,
                 content={"success": False, "message": f"服务器错误: {str(e)}"}
             )
-
+    
+    # 添加文件下载API
+    @app.get("/api/files/download")
+    async def api_files_download(request: Request, path: str = None):
+        """下载文件"""
+        # 使用会话验证
+        try:
+            # 检查认证状态
+            username = await check_auth(request)
+            if not username:
+                # 记录调试信息
+                logger.debug("文件下载API访问失败：未认证")
+                return JSONResponse(status_code=401, content={
+                    'success': False, 
+                    'message': '未认证，请先登录'
+                })
+        
+            if not path:
+                return JSONResponse(status_code=400, content={
+                    'success': False, 
+                    'message': '未提供文件路径'
+                })
+        
+            # 处理相对路径
+            if not path.startswith('/'):
+                path = '/' + path
+        
+            # 获取完整路径
+            root_dir = Path(current_dir).parent
+            full_path = root_dir / path.lstrip('/')
+        
+            # 安全检查：确保路径在项目目录内
+            if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
+                return JSONResponse(status_code=403, content={
+                    'success': False, 
+                    'message': '无法访问项目目录外的文件'
+                })
+        
+            # 检查文件是否存在
+            if not os.path.exists(full_path):
+                return JSONResponse(status_code=404, content={
+                    'success': False, 
+                    'message': '文件不存在'
+                })
+        
+            # 检查是否是文件
+            if not os.path.isfile(full_path):
+                return JSONResponse(status_code=400, content={
+                    'success': False, 
+                    'message': '路径不是一个文件'
+                })
+        
+            # 获取文件名
+            filename = os.path.basename(full_path)
+            
+            # 使用FileResponse发送文件
+            logger.info(f"下载文件: {path}")
+            return FileResponse(
+                path=full_path, 
+                filename=filename,
+                media_type='application/octet-stream'
+            )
+        
+        except Exception as e:
+            logger.error(f"下载文件失败: {str(e)}")
+            return JSONResponse(status_code=500, content={
+                'success': False, 
+                'message': f'下载文件失败: {str(e)}'
+            })
     # 添加压缩包解压API
     @app.post("/api/files/extract")
     async def api_files_extract(
@@ -4312,7 +4416,22 @@ async def api_upload(request: Request, files: List[UploadFile] = File(...)):
 # 启动服务器
 def start_server(host_arg=None, port_arg=None, username_arg=None, password_arg=None, debug_arg=None, bot=None):
     """启动管理后台服务器"""
-    global config
+    global SERVER_RUNNING, SERVER_THREAD, bot_instance, config
+    
+    # 检查服务器是否已经在运行
+    if SERVER_RUNNING and SERVER_THREAD and SERVER_THREAD.is_alive():
+        logger.warning("管理后台服务器已经在运行中，跳过重复启动")
+        # 如果有新的bot实例，仍然需要设置
+        if bot is not None:
+            set_bot_instance(bot)
+        return SERVER_THREAD
+    
+    
+    # 设置bot实例
+    if bot is not None:
+        bot_instance = bot
+        # 调用set_bot_instance函数
+        set_bot_instance(bot)
     
     # 加载配置
     load_config()
@@ -4329,23 +4448,43 @@ def start_server(host_arg=None, port_arg=None, username_arg=None, password_arg=N
     if debug_arg is not None:
         config["debug"] = debug_arg
     
-    # 设置bot实例
-    if bot is not None:
-        set_bot_instance(bot)
-    
-    # 初始化FastAPI应用
+    # 初始化应用
     init_app()
     
     # 在新线程中启动服务器
-    server_thread = threading.Thread(
-        target=lambda: uvicorn.run(
-            app,
-            host=config["host"],
-            port=config["port"]
-        ),
-        daemon=True
-    )
+    def run_server():
+        try:
+            import uvicorn
+            logger.info(f"启动管理后台服务器: {config['host']}:{config['port']}")
+            uvicorn.run(
+                app,
+                host=config["host"],
+                port=config["port"],
+                log_level="debug" if config["debug"] else "info"
+            )
+        except Exception as e:
+            logger.error(f"启动服务器时出错: {str(e)}")
+            global SERVER_RUNNING
+            SERVER_RUNNING = False
+    
+    # 创建并启动线程
+    import threading
+    server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
+    
+    # 更新全局状态
+    SERVER_RUNNING = True
+    SERVER_THREAD = server_thread
+    
+    # 创建状态文件
+    try:
+        status_path = os.path.join(current_dir, "admin_server_status.txt")
+        with open(status_path, "w", encoding="utf-8") as f:
+            f.write(f"启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"主机: {config['host']}:{config['port']}\n")
+            f.write(f"状态: 运行中\n")
+    except Exception as e:
+        logger.error(f"创建状态文件失败: {str(e)}")
     
     return server_thread
 
