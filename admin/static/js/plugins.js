@@ -86,6 +86,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载插件市场
     loadPluginMarket();
     
+    // 为刷新市场按钮添加点击事件
+    const refreshMarketBtn = document.getElementById('btn-refresh-market');
+    if (refreshMarketBtn) {
+        refreshMarketBtn.addEventListener('click', function() {
+            loadPluginMarket();
+        });
+    } else {
+        console.warn('找不到刷新市场按钮，无法添加事件监听器');
+    }
+    
     console.log('提交按钮:', document.getElementById('btn-upload-plugin'));
     
     // 尝试添加内联点击事件
@@ -1053,6 +1063,7 @@ async function submitPlugin() {
                 'Accept': 'application/json'
             },
             body: JSON.stringify(pluginData),
+            credentials: 'omit',  // 使用omit模式避免凭证问题
             signal: AbortSignal.timeout(10000) // 10秒超时
         });
         

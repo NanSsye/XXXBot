@@ -25,31 +25,65 @@ if current_dir not in sys.path:
 
 # 从main_config.toml读取默认配置
 def get_default_config():
-    try:
-        main_dir = Path(current_dir).parent
-        config_path = main_dir / "main_config.toml"
-        if config_path.exists():
-            with open(config_path, "rb") as f:
-                config = tomllib.load(f)
-                admin_config = config.get("Admin", {})
-                return {
-                    "host": admin_config.get("host", "0.0.0.0"),
-                    "port": admin_config.get("port", 8080),
-                    "username": admin_config.get("username", "admin"),
-                    "password": admin_config.get("password", "admin"),
-                    "debug": admin_config.get("debug", False)
-                }
-    except Exception as e:
-        logger.error(f"读取main_config.toml出错: {e}")
-    
-    # 使用默认值
-    return {
+    # 默认配置
+    default_values = {
         "host": "0.0.0.0",
         "port": 8080,
         "username": "admin",
         "password": "admin",
         "debug": False
     }
+    
+    try:
+        # 首先尝试从配置文件读取
+        main_dir = Path(current_dir).parent
+        config_path = main_dir / "main_config.toml"
+        if config_path.exists():
+            with open(config_path, "rb") as f:
+                config = tomllib.load(f)
+                admin_config = config.get("Admin", {})
+                # 从配置文件更新默认值
+                result = {
+                    "host": admin_config.get("host", default_values["host"]),
+                    "port": admin_config.get("port", default_values["port"]),
+                    "username": admin_config.get("username", default_values["username"]),
+                    "password": admin_config.get("password", default_values["password"]),
+                    "debug": admin_config.get("debug", default_values["debug"])
+                }
+        else:
+            # 使用默认值
+            result = default_values
+            
+        # 从环境变量中读取配置（优先级高于配置文件）
+        if "ADMIN_USERNAME" in os.environ:
+            result["username"] = os.environ["ADMIN_USERNAME"]
+            logger.info("从环境变量ADMIN_USERNAME加载管理员用户名")
+            
+        if "ADMIN_PASSWORD" in os.environ:
+            result["password"] = os.environ["ADMIN_PASSWORD"]
+            logger.info("从环境变量ADMIN_PASSWORD加载管理员密码")
+            
+        if "ADMIN_HOST" in os.environ:
+            result["host"] = os.environ["ADMIN_HOST"]
+            logger.info("从环境变量ADMIN_HOST加载主机配置")
+            
+        if "ADMIN_PORT" in os.environ and os.environ["ADMIN_PORT"].isdigit():
+            result["port"] = int(os.environ["ADMIN_PORT"])
+            logger.info("从环境变量ADMIN_PORT加载端口配置")
+            
+        if "ADMIN_DEBUG" in os.environ:
+            debug_value = os.environ["ADMIN_DEBUG"].lower()
+            result["debug"] = debug_value in ("true", "1", "yes")
+            logger.info("从环境变量ADMIN_DEBUG加载调试模式配置")
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"读取main_config.toml出错: {e}")
+        logger.warning("使用默认配置")
+    
+    # 发生错误时使用默认值
+    return default_values
 
 if __name__ == "__main__":
     # 获取默认配置

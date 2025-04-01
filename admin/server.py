@@ -125,16 +125,40 @@ def load_config():
                     if "debug" in admin_config:
                         config["debug"] = admin_config["debug"]
                     logger.info(f"从main_config.toml加载管理后台配置: {main_config_path}")
-                    return
+        else:
+            # 如果main_config.toml不存在或没有Admin部分，尝试从config.json加载
+            config_path = os.path.join(current_dir, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as f:
+                    loaded_config = json.load(f)
+                    config.update(loaded_config)
+                    logger.info(f"从config.json加载管理后台配置: {config_path}")
+                    logger.warning("建议将配置迁移到main_config.toml中")
         
-        # 如果main_config.toml不存在或没有Admin部分，尝试从config.json加载
-        config_path = os.path.join(current_dir, "config.json")
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                loaded_config = json.load(f)
-                config.update(loaded_config)
-                logger.info(f"从config.json加载管理后台配置: {config_path}")
-                logger.warning("建议将配置迁移到main_config.toml中")
+        # 最后检查环境变量，环境变量的优先级最高
+        # 从环境变量中读取管理员用户名和密码
+        if "ADMIN_USERNAME" in os.environ:
+            config["username"] = os.environ["ADMIN_USERNAME"]
+            logger.info("从环境变量ADMIN_USERNAME加载管理员用户名")
+        
+        if "ADMIN_PASSWORD" in os.environ:
+            config["password"] = os.environ["ADMIN_PASSWORD"]
+            logger.info("从环境变量ADMIN_PASSWORD加载管理员密码")
+            
+        # 其他可能的环境变量配置
+        if "ADMIN_HOST" in os.environ:
+            config["host"] = os.environ["ADMIN_HOST"]
+            logger.info("从环境变量ADMIN_HOST加载主机配置")
+            
+        if "ADMIN_PORT" in os.environ and os.environ["ADMIN_PORT"].isdigit():
+            config["port"] = int(os.environ["ADMIN_PORT"])
+            logger.info("从环境变量ADMIN_PORT加载端口配置")
+            
+        if "ADMIN_DEBUG" in os.environ:
+            debug_value = os.environ["ADMIN_DEBUG"].lower()
+            config["debug"] = debug_value in ("true", "1", "yes")
+            logger.info("从环境变量ADMIN_DEBUG加载调试模式配置")
+            
     except Exception as e:
         logger.error(f"加载管理后台配置失败: {str(e)}")
         logger.warning("使用默认配置")
@@ -1689,66 +1713,28 @@ except:
         try:
             # 获取请求数据
             data = await request.json()
-            plugin_name = data.get("plugin_id")
-            plugin_data = data.get("plugin_data")
+            plugin_data = data.get('plugin_data', {})
+            plugin_name = plugin_data.get('name')
+            github_url = plugin_data.get('github_url')
             
-            if not plugin_name:
-                return {"success": False, "error": "缺少插件ID"}
-            
-            if not plugin_data:
-                # 如果没有传递插件数据，则从远程获取
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    # 构建请求头
-                    headers = {
-                        "X-Client-ID": get_client_id(),
-                        "X-Bot-Version": get_bot_version(),
-                        "User-Agent": f"XYBot/{get_bot_version()}"
-                    }
-                    
-                    try:
-                        # 请求远程API
-                        response = await client.get(
-                            f"{PLUGIN_MARKET_API['BASE_URL']}/plugins/{plugin_name}",
-                            headers=headers
-                        )
-                        
-                        response.raise_for_status()
-                        result = response.json()
-                        
-                        if not result.get("success"):
-                            return result
-                        
-                        plugin_data = result.get("plugin")
-                        
-                    except (httpx.HTTPError, httpx.TimeoutException) as e:
-                        logger.error(f"从远程获取插件详情失败: {str(e)}")
-                        return {"success": False, "error": f"无法连接到服务器: {str(e)}"}
-            
-            # 获取插件名称（用于创建目录）
-            plugin_name = plugin_data.get("name", "").replace(" ", "_")  # 保留原始大小写
-            if not plugin_name:
-                return {"success": False, "error": "无法获取插件名称"}
+            if not plugin_name or not github_url:
+                return {"success": False, "error": "缺少必要参数"}
             
             # 创建临时目录
             import tempfile
             import shutil
-            from pathlib import Path
+            import requests
             import zipfile
             import io
-            import requests
             import sys
             import subprocess
+            from pathlib import Path
             
             temp_dir = tempfile.mkdtemp()
             plugin_dir = os.path.join("plugins", plugin_name)
             
             try:
-                # 下载插件代码
-                github_url = plugin_data.get("github_url")
-                if not github_url:
-                    return {"success": False, "error": "缺少GitHub链接"}
-                
-                # 构建GitHub仓库ZIP下载链接
+                # 构建 ZIP 下载链接
                 if github_url.endswith('.git'):
                     github_url = github_url[:-4]
                 
@@ -1827,12 +1813,13 @@ except:
                         process = subprocess.Popen(
                             [sys.executable, "-m", "pip", "install", "-r", requirements_file],
                             stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE
+                            stderr=subprocess.PIPE,
+                            text=True
                         )
                         stdout, stderr = process.communicate()
                         
                         if process.returncode != 0:
-                            logger.warning(f"安装依赖可能失败: {stderr.decode('utf-8', errors='ignore')}")
+                            logger.warning(f"安装依赖可能失败: {stderr}")
                     
                     # 安装完成后，立即加载插件
                     try:
@@ -4697,31 +4684,131 @@ def get_bot(wxid):
         try:
             # 获取请求数据
             data = await request.json()
-            plugin_name = data.get('name')
-            github_url = data.get('github_url')
+            plugin_data = data.get('plugin_data', {})
+            plugin_name = plugin_data.get('name')
+            github_url = plugin_data.get('github_url')
             
             if not plugin_name or not github_url:
                 return {"success": False, "error": "缺少必要参数"}
             
-            # 获取DependencyManager插件实例
-            dependency_manager = None
-            from utils.plugin_manager import plugin_manager
-            for plugin in plugin_manager.plugins:
-                if plugin.__class__.__name__ == "DependencyManager":
-                    dependency_manager = plugin
-                    break
+            # 创建临时目录
+            import tempfile
+            import shutil
+            import requests
+            import zipfile
+            import io
+            import sys
+            import subprocess
+            from pathlib import Path
             
-            if not dependency_manager:
-                return {"success": False, "error": "DependencyManager插件未安装"}
+            temp_dir = tempfile.mkdtemp()
+            plugin_dir = os.path.join("plugins", plugin_name)
             
-            # 使用DependencyManager的安装方法
-            await dependency_manager._handle_github_install(
-                bot_instance,
-                "admin",  # 使用admin作为chat_id
-                github_url
-            )
-            
-            return {"success": True, "message": f"插件 {plugin_name} 安装成功"}
+            try:
+                # 构建 ZIP 下载链接
+                if github_url.endswith('.git'):
+                    github_url = github_url[:-4]
+                
+                # 尝试下载main分支
+                zip_url = f"{github_url}/archive/refs/heads/main.zip"
+                logger.info(f"正在从 {zip_url} 下载插件...")
+                
+                try:
+                    response = requests.get(zip_url, timeout=30)
+                    if response.status_code != 200:
+                        # 尝试使用master分支
+                        zip_url = f"{github_url}/archive/refs/heads/master.zip"
+                        logger.info(f"尝试从master分支下载: {zip_url}")
+                        response = requests.get(zip_url, timeout=30)
+                        
+                    if response.status_code != 200:
+                        return {"success": False, "error": f"下载插件失败: HTTP {response.status_code}"}
+                    
+                    # 解压ZIP文件到临时目录
+                    z = zipfile.ZipFile(io.BytesIO(response.content))
+                    z.extractall(temp_dir)
+                    
+                    # 检查插件是否已存在
+                    if os.path.exists(plugin_dir):
+                        # 如果存在，先备份配置文件
+                        config_path = os.path.join(plugin_dir, "config.toml")
+                        config_backup = None
+                        if os.path.exists(config_path):
+                            with open(config_path, "rb") as f:
+                                config_backup = f.read()
+                        
+                        # 删除旧目录
+                        shutil.rmtree(plugin_dir)
+                    
+                    # 创建插件目录
+                    os.makedirs(plugin_dir, exist_ok=True)
+                    
+                    # ZIP文件解压后通常会有一个包含所有文件的顶级目录
+                    extracted_dirs = os.listdir(temp_dir)
+                    if len(extracted_dirs) == 1:
+                        extract_subdir = os.path.join(temp_dir, extracted_dirs[0])
+                        
+                        # 将文件从解压的子目录复制到目标目录
+                        for item in os.listdir(extract_subdir):
+                            s = os.path.join(extract_subdir, item)
+                            d = os.path.join(plugin_dir, item)
+                            if os.path.isdir(s):
+                                shutil.copytree(s, d, dirs_exist_ok=True)
+                            else:
+                                shutil.copy2(s, d)
+                    else:
+                        # 直接从临时目录复制文件
+                        for item in os.listdir(temp_dir):
+                            s = os.path.join(temp_dir, item)
+                            d = os.path.join(plugin_dir, item)
+                            if os.path.isdir(s):
+                                shutil.copytree(s, d, dirs_exist_ok=True)
+                            else:
+                                shutil.copy2(s, d)
+                    
+                    # 恢复配置文件（如果有）
+                    if config_backup:
+                        with open(config_path, "wb") as f:
+                            f.write(config_backup)
+                    else:
+                        # 确保创建一个空的配置文件（防止加载插件时出错）
+                        config_path = os.path.join(plugin_dir, "config.toml")
+                        if not os.path.exists(config_path):
+                            with open(config_path, "w", encoding="utf-8") as f:
+                                f.write("# 插件配置文件\n")
+                    
+                    # 安装依赖
+                    requirements_file = os.path.join(plugin_dir, "requirements.txt")
+                    if os.path.exists(requirements_file):
+                        logger.info(f"正在安装插件依赖...")
+                        process = subprocess.Popen(
+                            [sys.executable, "-m", "pip", "install", "-r", requirements_file],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        stdout, stderr = process.communicate()
+                        
+                        if process.returncode != 0:
+                            logger.warning(f"安装依赖可能失败: {stderr}")
+                    
+                    # 安装完成后，立即加载插件
+                    try:
+                        from utils.plugin_manager import plugin_manager
+                        await plugin_manager.load_plugin_from_directory(bot_instance, plugin_name)
+                    except Exception as e:
+                        logger.warning(f"自动加载插件失败，用户需要手动启用: {str(e)}")
+                    
+                    return {"success": True, "message": "插件安装成功"}
+                    
+                except Exception as e:
+                    logger.error(f"下载和安装插件失败: {str(e)}")
+                    return {"success": False, "error": f"安装失败: {str(e)}"}
+                
+            finally:
+                # 清理临时目录
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
             
         except Exception as e:
             logger.error(f"安装插件失败: {str(e)}")
