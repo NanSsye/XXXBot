@@ -1578,4 +1578,60 @@ body.modal-open #config-container {
         padding: var(--space-xs);
         padding-bottom: calc(60px + var(--space-md));
     }
+}
+
+/* 添加实时日志样式 */
+.log-viewer {
+    background-color: #1a1a1a;
+    color: #f1f1f1;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    border-radius: 5px;
+    padding: 10px;
+    overflow-y: auto;
+    height: 400px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.log-entry {
+    margin-bottom: 2px;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    line-height: 1.4;
+}
+
+.log-viewer .text-danger {
+    color: #ff6b6b !important;
+}
+
+.log-viewer .text-warning {
+    color: #ffd166 !important;
+}
+
+.log-viewer .text-success {
+    color: #06d6a0 !important;
+}
+
+.log-viewer .text-muted {
+    color: #adb5bd !important;
+}
+
+#realtime-log-viewer {
+    scrollbar-color: #4e4e4e #1a1a1a;
+    scrollbar-width: thin;
+}
+
+#realtime-log-viewer::-webkit-scrollbar {
+    width: 8px;
+}
+
+#realtime-log-viewer::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+#realtime-log-viewer::-webkit-scrollbar-thumb {
+    background-color: #4e4e4e;
+    border-radius: 20px;
+    border: 2px solid #1a1a1a;
 } 

@@ -1733,6 +1733,10 @@ except:
             temp_dir = tempfile.mkdtemp()
             plugin_dir = os.path.join("plugins", plugin_name)
             
+            # 预先初始化config_backup变量，防止未定义错误
+            config_backup = None
+            config_path = os.path.join(plugin_dir, "config.toml")
+            
             try:
                 # 构建 ZIP 下载链接
                 if github_url.endswith('.git'):
@@ -1760,8 +1764,6 @@ except:
                     # 检查插件是否已存在
                     if os.path.exists(plugin_dir):
                         # 如果存在，先备份配置文件
-                        config_path = os.path.join(plugin_dir, "config.toml")
-                        config_backup = None
                         if os.path.exists(config_path):
                             with open(config_path, "rb") as f:
                                 config_backup = f.read()
@@ -1838,7 +1840,7 @@ except:
                 # 清理临时目录
                 if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir)
-                
+            
         except Exception as e:
             logger.error(f"安装插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -4680,7 +4682,7 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+            
         try:
             # 获取请求数据
             data = await request.json()
@@ -4703,6 +4705,10 @@ def get_bot(wxid):
             
             temp_dir = tempfile.mkdtemp()
             plugin_dir = os.path.join("plugins", plugin_name)
+            
+            # 预先初始化config_backup变量，防止未定义错误
+            config_backup = None
+            config_path = os.path.join(plugin_dir, "config.toml")
             
             try:
                 # 构建 ZIP 下载链接
@@ -4731,8 +4737,6 @@ def get_bot(wxid):
                     # 检查插件是否已存在
                     if os.path.exists(plugin_dir):
                         # 如果存在，先备份配置文件
-                        config_path = os.path.join(plugin_dir, "config.toml")
-                        config_backup = None
                         if os.path.exists(config_path):
                             with open(config_path, "rb") as f:
                                 config_backup = f.read()
@@ -5925,4 +5929,3 @@ def get_bot(wxid):
         except Exception as e:
             logger.exception(f"删除提醒 {id} 失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"删除提醒失败: {str(e)}"})
-
