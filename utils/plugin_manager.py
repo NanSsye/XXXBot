@@ -190,7 +190,7 @@ class PluginManager:
 
     async def reload_all_plugins(self, bot: WechatAPIClient) -> List[str]:
         """重载所有插件
-        
+
         Returns:
             List[str]: 成功重载的插件名称列表
         """
@@ -216,31 +216,58 @@ class PluginManager:
 
     def get_plugin_info(self, plugin_name: str = None) -> Union[dict, List[dict]]:
         """获取插件信息
-        
+
         Args:
             plugin_name: 插件名称，如果为None则返回所有插件信息
-            
+
         Returns:
             如果指定插件名，返回单个插件信息字典；否则返回所有插件信息列表
         """
         # 创建一个可以JSON序列化的信息副本
         def clean_plugin_info(info):
+            plugin_name = info.get("name", "unknown")
+            # 检查是否存在README.md文件
+            has_readme = False
+            readme_path = ""
+
+            # 查找插件目录
+            for dirname in os.listdir("plugins"):
+                if os.path.isdir(f"plugins/{dirname}"):
+                    # 检查目录中是否有与插件同名的类
+                    if os.path.exists(f"plugins/{dirname}/main.py"):
+                        try:
+                            module = sys.modules.get(f"plugins.{dirname}.main")
+                            if module:
+                                for name, obj in inspect.getmembers(module):
+                                    if (inspect.isclass(obj) and
+                                        issubclass(obj, PluginBase) and
+                                        obj != PluginBase and
+                                        obj.__name__ == plugin_name):
+                                        # 找到了插件目录，检查README.md
+                                        readme_path = f"plugins/{dirname}/README.md"
+                                        has_readme = os.path.exists(readme_path)
+                                        break
+                        except Exception as e:
+                            logger.error(f"检查插件{plugin_name}的README.md时出错: {str(e)}")
+
             result = {
-                "id": info.get("name", "unknown"),
-                "name": info.get("name", "unknown"),
+                "id": plugin_name,
+                "name": plugin_name,
                 "description": info.get("description", ""),
                 "author": info.get("author", ""),
                 "version": info.get("version", "1.0.0"),
-                "enabled": info.get("enabled", False)
+                "enabled": info.get("enabled", False),
+                "has_readme": has_readme,
+                "readme_path": readme_path if has_readme else ""
             }
             return result
-            
+
         if plugin_name:
             info = self.plugin_info.get(plugin_name)
             if info:
                 return clean_plugin_info(info)
             return None
-        
+
         return [clean_plugin_info(info) for info in self.plugin_info.values()]
 
 

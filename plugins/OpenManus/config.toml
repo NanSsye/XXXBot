@@ -66,6 +66,7 @@ api_base = "https://www.modelscope.cn/api/v1/muse/predict"  # ModelScope API基�
 max_wait_time = 240      # 绘图任务等待最大时间(秒)
 default_model = "rioko" # 默认模型类型：default, anime, realistic
 default_ratio = "3:4"    # 默认图像比例：1:1, 4:3, 3:4, 16:9, 9:16
+default_base_model_id = "14497"  # 默认基础模型ID：麦穗超然 v1.0
 modelscope_cookies = "acw_tc=0b62600617436959989742286e7058e02fe6264ae51ef13d27395b1de5f97c; csrf_session=MTc0MzY5NjAwMHxEWDhFQVFMX2dBQUJFQUVRQUFBeV80QUFBUVp6ZEhKcGJtY01DZ0FJWTNOeVpsTmhiSFFHYzNSeWFXNW5EQklBRUVScFdHRnFXR1EyVEVSQ1NWUlhVV289fPIRGEw3X_nzqJmuBT-oLGbUjqNILwDxXaQtYfJMp2wx; _samesite_flag_=true; cookie2=1640d621a406081d94d46b035183ecb5; t=f0c53d719cc90fda3b0f8b46f7525ff4; _tb_token_=ee17e73f57734; csrf_token=SMy5xLPCBJ-Lv_iqJ1ozYajhnHE%3D; csg=6a0cb63c; m_session_id=a48f5b6e-86c2-4ac9-9538-798c8aba7687; h_uid=2217913099749; tfstk=gyQtAtXyiJ2gU88uSPZnoN6Y2iVnlZCNvO5SoKvic9BdN_kMc1YMMqBFgNvMo5SpH9pU_1bgQ9UAKtBGjNPNDqCAHqfMSscNYTfSSNqwoqLwuEwuEz4u_182lM-SGAlwRIRkGrxjfDTwiTKKGr4l_1lI6xNlAzDABSXMlK6XfHOB_pM6hC6XA2O2dVOj5IMQ9IJBlCTjlpaBwIHjcq6fOWdD1Eg6ftTItG2vdf9mkgNAby_0wV0tWwd9XK3csqKFc4Y6FSJSz4JOBhnG1p3jlwInauTJCulH3FvNaCB4zV86DG69OEUxRFBN1ZtdoJcB2eJHVN18VW1dkdK55HhrPFCeGttAY83k6Fjp2NIagv11EdIW7sc8I6KRv3RBAjn6Sgflu3__WYJH4IBJwOHO4r7lyFb-ELdmfWFK0m-6T2PCjED80fFv9LVTkmo2YWRpEWFK0m-6TBpu6Snq0HPF.; isg=BL6-_ZO4VYf1WYGjKEpVLwiuD9QA_4J55lnRBWjJ9INoC0_lh4v0iMytg9fHM3qR"  # ModelScope网站Cookie，用于认证
 modelscope_csrf_token = "SMy5xLPCBJ-Lv_iqJ1ozYajhnHE=" # ModelScope网站CSRF令牌
 
@@ -75,12 +76,28 @@ name = "rioko"  # 模型名称，可在命令中直接使用
 model_id = "85727"  # ModelScope模型ID
 model_path = "modelUrl=modelscope://zhouzl2025/t5?revision=ckpt-20"  # 完整模型路径
 scale = 0.7  # 默认权重
+base_model_id = "14497"  # 麦穗超然 v1.0 模型
 
 [[drawing.lora_models]]
-name = "宫崎骏"  # 替换为你想要的名称
-model_id = "80982"  # 替换为实际模型ID
-model_path = "modelscope://author/MusePublic/489?revision=ckpt-20"  # 替换为实际模型路径 
+name = "水墨风格"  # 替换为你想要的名称
+model_id = "45528"  # 替换为实际模型ID
+model_path = "modelscope://author/MAILAND/majicflus_v1?revision=ckpt-20"  # 替换为实际模型路径
 scale = 0.8  # 默认权重
+base_model_id = "14497"  # 麦穗超然 v1.0 模型
+
+[[drawing.lora_models]]
+name = "吉卜力风格"  # 替换为你想要的名称
+model_id = "80982"  # 替换为实际模型ID
+model_path = "modelscope://author/MusePublic/489?revision=ckpt-20"  # 替换为实际模型路径
+scale = 0.8  # 默认权重
+base_model_id = "14497"  # 麦穗超然 v1.0 模型
+
+[[drawing.lora_models]]
+name = "ZJsyqj风格"  # 替换为你想要的名称
+model_id = "63742"  # 替换为实际模型ID
+model_path = "modelscope://zuojun/ZJsyqjV2.1?revision=ckpt-20"  # 正确的ZJsyqj模型路径
+scale = 1.0  # 与ModelScope界面一致的权重
+base_model_id = "14497"  # 麦穗超然 v1.0 模型
 
 [search]
 # 搜索工具配置
@@ -120,13 +137,13 @@ enable = false
 base_url = "https://api.fish.audio"
 # TTS API 的 Key
 api_key = "f33faadfae504bd0be2e6ff988d7785c"
-# --- 指定你的自定义模型 ID --- 
-reference_id = "6ce7ea8ada884bf3889fa7c7fb206691" 
+# --- 指定你的自定义模型 ID ---
+reference_id = "6ce7ea8ada884bf3889fa7c7fb206691"
 # model = "speech-1.5" # 使用 reference_id 时，这个通用模型名通常不需要
 # 默认输出格式
 format = "mp3"
 # 默认 MP3 比特率
-mp3_bitrate = 128 
+mp3_bitrate = 128
 
 # --- 新增 MiniMax TTS 配置节 ---
 [minimax_tts]
@@ -155,9 +172,9 @@ vol = 1.0
 # 音调 (-12.0-12.0)
 pitch = 0.0
 # 默认支持语言增强模式
-language_boost = "auto" 
+language_boost = "auto"
 # 情绪参数，可选值: "happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"
-emotion = "neutral" 
+emotion = "neutral"
 # --- 新增提示词配置 ---
 [prompts]
 # 是否启用自定义提示词
@@ -167,7 +184,7 @@ system_prompt = """
 
 """
 # 对话开始时的欢迎语（可选）
-#greeting = "您好！我是OpenManus智能助手，有什么可以帮您的吗？" 
+#greeting = "您好！我是OpenManus智能助手，有什么可以帮您的吗？"
 
 [tool.metaphor]
 api_key = "1a986eca-d50a-4d3d-bad5-853db796761a" # Metaphor API Key，用于意向搜索，请前往 https://dashboard.metaphor.systems/ 申请

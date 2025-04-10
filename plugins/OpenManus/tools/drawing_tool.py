@@ -80,21 +80,24 @@ class ModelScopeDrawingTool(Tool):
 
         # 预先加载模型配置
         # 模型映射配置
+        # 默认基础模型ID将在加载配置时设置
+        self.default_base_model_id = "14497"  # 默认使用麦穗超然 v1.0 模型
+
         self.model_config = {
             "default": {
-                "checkpointModelVersionId": 80,  # FLUX.1 模型
+                "checkpointModelVersionId": 14497,  # 麦穗超然 v1.0 模型
                 "loraArgs": []
             },
             "anime": {
-                "checkpointModelVersionId": 80,
+                "checkpointModelVersionId": 14497,
                 "loraArgs": [{"modelVersionId": 48603, "scale": 1}]  # anime风格LoRA
             },
             "realistic": {
-                "checkpointModelVersionId": 80,
+                "checkpointModelVersionId": 14497,
                 "loraArgs": [{"modelVersionId": 47474, "scale": 1}]  # 写实风格LoRA
             },
             "rioko": {
-                "checkpointModelVersionId": 80,
+                "checkpointModelVersionId": 14497,
                 "loraArgs": [{"modelVersionId": 48603, "scale": 1}],  # Rioko LoRA模型
                 "modelPath": "modelscope://sd1995/lora_rioko?revision=ckpt-24"
             },
@@ -182,8 +185,9 @@ class ModelScopeDrawingTool(Tool):
                 self.default_lora_scale = drawing_config.get("default_lora_scale", 0.7)
                 self.default_model = drawing_config.get("default_model", "rioko")
                 self.default_ratio = drawing_config.get("default_ratio", "1:1")
+                self.default_base_model_id = drawing_config.get("default_base_model_id", "14497")  # 默认基础模型ID
 
-                logger.info(f"从配置文件加载默认设置：模型={self.default_model}，比例={self.default_ratio}，LoRA ID={self.default_lora_id}，LoRA权重={self.default_lora_scale}")
+                logger.info(f"从配置文件加载默认设置：模型={self.default_model}，比例={self.default_ratio}，LoRA ID={self.default_lora_id}，LoRA权重={self.default_lora_scale}，基础模型ID={self.default_base_model_id}")
 
                 # 加载自定义LoRA模型列表
                 lora_models = drawing_config.get("lora_models", [])
@@ -193,7 +197,8 @@ class ModelScopeDrawingTool(Tool):
                         self.custom_lora_models[name] = {
                             "model_id": model.get("model_id", ""),
                             "model_path": model.get("model_path", ""),
-                            "scale": model.get("scale", 0.7)
+                            "scale": model.get("scale", 0.7),
+                            "base_model_id": model.get("base_model_id", self.default_base_model_id)  # 使用模型的基础模型ID或默认值
                         }
 
                 logger.info(f"已加载{len(self.custom_lora_models)}个自定义LoRA模型配置")
@@ -220,9 +225,12 @@ class ModelScopeDrawingTool(Tool):
                 scale = model_info.get("scale", 0.7)
                 model_path = model_info.get("model_path", "")
 
+                # 获取基础模型ID
+                base_model_id = model_info.get("base_model_id", self.default_base_model_id)
+
                 # 创建或覆盖模型配置
                 self.model_config[name] = {
-                    "checkpointModelVersionId": 80,
+                    "checkpointModelVersionId": int(base_model_id),  # 使用指定的基础模型ID
                     "loraArgs": [{"modelVersionId": int(model_id), "scale": float(scale)}]
                 }
 
@@ -347,7 +355,7 @@ class ModelScopeDrawingTool(Tool):
 
                 # 创建自定义模型配置
                 model_args = {
-                    "checkpointModelVersionId": 80,  # FLUX.1 模型
+                    "checkpointModelVersionId": int(self.default_base_model_id),  # 使用默认基础模型ID
                     "loraArgs": [{"modelVersionId": model_version_id, "scale": float(lora_scale)}]
                 }
             else:
@@ -464,7 +472,7 @@ class ModelScopeDrawingTool(Tool):
                     logger.info(f"使用完整模型路径: {model_args['modelPath']}")
 
                 # 记录完整请求，方便调试
-                logger.debug(f"提交任务请求: {json.dumps(data, ensure_ascii=False)}")
+                logger.info(f"提交任务请求: {json.dumps(data, ensure_ascii=False)}")
 
                 async with session.post(self.submit_url, json=data, headers=headers, cookies=cookies) as response:
                     if response.status != 200:
@@ -472,6 +480,9 @@ class ModelScopeDrawingTool(Tool):
                         return None
 
                     response_data = await response.json()
+                    # 记录完整响应，方便调试
+                    logger.info(f"任务提交响应: {json.dumps(response_data, ensure_ascii=False)}")
+
                     if not response_data.get("Success"):
                         logger.error(f"任务提交响应错误: {response_data}")
                         return None
@@ -532,6 +543,9 @@ class ModelScopeDrawingTool(Tool):
                             continue
 
                         response_data = await response.json()
+                        # 记录完整状态响应，方便调试
+                        logger.info(f"任务状态响应: {json.dumps(response_data, ensure_ascii=False)}")
+
                         if not response_data.get("Success"):
                             logger.error(f"获取任务状态响应错误: {response_data}")
                             await asyncio.sleep(2)

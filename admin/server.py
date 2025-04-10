@@ -5,6 +5,8 @@ import time
 import asyncio
 import threading
 import traceback
+import importlib
+import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Union, Set
@@ -36,6 +38,9 @@ import psutil
 import platform
 import socket
 import re
+
+# 导入插件基类
+from utils.plugin_base import PluginBase
 import subprocess
 import shutil
 import inspect
@@ -134,31 +139,31 @@ def load_config():
                     config.update(loaded_config)
                     logger.info(f"从config.json加载管理后台配置: {config_path}")
                     logger.warning("建议将配置迁移到main_config.toml中")
-        
+
         # 最后检查环境变量，环境变量的优先级最高
         # 从环境变量中读取管理员用户名和密码
         if "ADMIN_USERNAME" in os.environ:
             config["username"] = os.environ["ADMIN_USERNAME"]
             logger.info("从环境变量ADMIN_USERNAME加载管理员用户名")
-        
+
         if "ADMIN_PASSWORD" in os.environ:
             config["password"] = os.environ["ADMIN_PASSWORD"]
             logger.info("从环境变量ADMIN_PASSWORD加载管理员密码")
-            
+
         # 其他可能的环境变量配置
         if "ADMIN_HOST" in os.environ:
             config["host"] = os.environ["ADMIN_HOST"]
             logger.info("从环境变量ADMIN_HOST加载主机配置")
-            
+
         if "ADMIN_PORT" in os.environ and os.environ["ADMIN_PORT"].isdigit():
             config["port"] = int(os.environ["ADMIN_PORT"])
             logger.info("从环境变量ADMIN_PORT加载端口配置")
-            
+
         if "ADMIN_DEBUG" in os.environ:
             debug_value = os.environ["ADMIN_DEBUG"].lower()
             config["debug"] = debug_value in ("true", "1", "yes")
             logger.info("从环境变量ADMIN_DEBUG加载调试模式配置")
-            
+
     except Exception as e:
         logger.error(f"加载管理后台配置失败: {str(e)}")
         logger.warning("使用默认配置")
@@ -168,8 +173,8 @@ def verify_credentials(credentials: HTTPBasicCredentials):
     """验证用户凭据"""
     correct_username = config["username"]
     correct_password = config["password"]
-    
-    if (credentials.username != correct_username or 
+
+    if (credentials.username != correct_username or
         credentials.password != correct_password):
         raise HTTPException(
             status_code=401,
@@ -182,11 +187,11 @@ def verify_credentials(credentials: HTTPBasicCredentials):
 async def connect_websocket(websocket: WebSocket):
     await websocket.accept()
     active_connections.append(websocket)
-    
+
 async def disconnect_websocket(websocket: WebSocket):
     if websocket in active_connections:
         active_connections.remove(websocket)
-        
+
 async def broadcast_message(message: str):
     """向所有WebSocket连接广播消息"""
     for connection in active_connections:
@@ -204,11 +209,11 @@ def get_system_info():
         import platform
         import psutil
         import socket
-        
+
         hostname = socket.gethostname()
         platform_info = platform.platform()
         python_version = platform.python_version()
-        
+
         # 获取CPU信息
         try:
             cpu_count = psutil.cpu_count(logical=True)
@@ -219,7 +224,7 @@ def get_system_info():
             logger.error(f"获取CPU信息失败: {str(e)}")
             cpu_count = 0
             cpu_percent = 0
-        
+
         # 获取内存信息
         try:
             memory = psutil.virtual_memory()
@@ -233,7 +238,7 @@ def get_system_info():
             memory_available = 0
             memory_used = 0
             memory_percent = 0
-        
+
         # 获取磁盘信息
         try:
             disk = psutil.disk_usage('/')
@@ -247,7 +252,7 @@ def get_system_info():
             disk_free = 0
             disk_used = 0
             disk_percent = 0
-        
+
         # 获取系统启动时间
         try:
             boot_time = datetime.fromtimestamp(psutil.boot_time())
@@ -310,32 +315,32 @@ def get_system_status():
     try:
         import psutil
         from datetime import datetime, timedelta
-        
+
         # 获取CPU使用率
         cpu_percent = psutil.cpu_percent(interval=0.5)
-        
+
         # 获取内存使用情况
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
         memory_used = memory.used
         memory_total = memory.total
-        
+
         # 获取磁盘使用情况
         disk = psutil.disk_usage('/')
         disk_percent = disk.percent
         disk_used = disk.used
         disk_total = disk.total
-        
+
         # 获取网络信息
         net_io_counters = psutil.net_io_counters()
         bytes_sent = net_io_counters.bytes_sent
         bytes_recv = net_io_counters.bytes_recv
-        
+
         # 获取系统启动时间和运行时间
         boot_time = datetime.fromtimestamp(psutil.boot_time())
         uptime = datetime.now() - boot_time
         uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
-        
+
         return {
             'cpu_percent': cpu_percent,
             'memory_percent': memory_percent,
@@ -371,16 +376,16 @@ def set_bot_instance(bot):
     global bot_instance
     bot_instance = bot
     logger.info("管理后台已设置bot实例")
-    
+
     # 不再需要添加get_contacts方法，因为我们直接使用wxapi.get_contract_list
-    
+
     # 保存到临时文件，确保子进程能够访问
     try:
         with open(os.path.join(current_dir, "bot_instance_status.txt"), "w", encoding="utf-8") as f:
             f.write(f"bot_instance_set: {datetime.now().isoformat()}")
     except Exception as e:
         logger.error(f"保存bot实例状态失败: {e}")
-    
+
     return bot_instance
 
 # 联系人获取辅助方法
@@ -395,7 +400,7 @@ def get_contacts_from_bot(bot):
                 # 查看wxapi有哪些可用属性，可能有已缓存的联系人列表
                 wxapi_attrs = [attr for attr in dir(bot.wxapi) if not attr.startswith('_')]
                 logger.debug(f"wxapi可用属性: {wxapi_attrs}")
-                
+
                 # 检查是否有contacts或contact_list属性
                 if hasattr(bot.wxapi, 'contacts') and bot.wxapi.contacts:
                     contacts = bot.wxapi.contacts
@@ -410,7 +415,7 @@ def get_contacts_from_bot(bot):
 
         # 尝试调用直接获取实时联系人的其他方法
         logger.warning("无法从wxapi获取联系人，可能需要实现更多方法")
-        
+
         # 如果无法获取联系人，返回空列表
         return []
     except Exception as e:
@@ -423,19 +428,19 @@ def update_bot_status(status, details=None, extra_data=None):
     try:
         # 直接使用绝对路径写入状态文件
         status_file = Path(current_dir) / "bot_status.json"
-        
+
         # 读取当前状态
         current_status = {}
         if status_file.exists():
             with open(status_file, "r", encoding="utf-8") as f:
                 current_status = json.load(f)
-        
+
         # 更新状态
         current_status["status"] = status
         current_status["timestamp"] = time.time()
         if details:
             current_status["details"] = details
-            
+
             # 检查详情中是否包含二维码URL
             qrcode_pattern = re.compile(r'获取到登录二维码: (https?://[^\s]+)')
             match = qrcode_pattern.search(str(details))
@@ -443,7 +448,7 @@ def update_bot_status(status, details=None, extra_data=None):
                 qrcode_url = match.group(1)
                 logger.debug(f"从状态详情中提取到二维码URL: {qrcode_url}")
                 current_status["qrcode_url"] = qrcode_url
-            
+
             # 检查详情中是否包含UUID
             uuid_pattern = re.compile(r'获取到登录uuid: ([^\s]+)')
             match = uuid_pattern.search(str(details))
@@ -451,35 +456,35 @@ def update_bot_status(status, details=None, extra_data=None):
                 uuid = match.group(1)
                 logger.debug(f"从状态详情中提取到UUID: {uuid}")
                 current_status["uuid"] = uuid
-                
+
                 # 如果有uuid但没有qrcode_url，尝试构建
                 if "qrcode_url" not in current_status:
                     current_status["qrcode_url"] = f"https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/{uuid}"
                     logger.debug(f"根据UUID构建二维码URL: {current_status['qrcode_url']}")
-            
+
         # 添加额外数据
         if extra_data and isinstance(extra_data, dict):
             for key, value in extra_data.items():
                 current_status[key] = value
-                
+
             # 特别处理extra_data中的二维码信息
             if "qrcode_url" in extra_data:
                 logger.debug(f"从extra_data中获取二维码URL: {extra_data['qrcode_url']}")
-                
+
             if "uuid" in extra_data and "qrcode_url" not in current_status:
                 current_status["qrcode_url"] = f"https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/{extra_data['uuid']}"
                 logger.debug(f"根据extra_data中的UUID构建二维码URL: {current_status['qrcode_url']}")
-        
+
         # 确保目录存在
         status_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # 写入文件
         with open(status_file, "w", encoding="utf-8") as f:
             json.dump(current_status, f)
-            
+
         logger.debug(f"成功更新bot状态: {status}")
         logger.debug(f"状态文件内容: qrcode_url={current_status.get('qrcode_url', None)}, uuid={current_status.get('uuid', None)}")
-        
+
         # 复制一份到根目录供其他模块使用
         try:
             root_status_file = Path(current_dir).parent / "bot_status.json"
@@ -498,9 +503,9 @@ def get_bot_status():
         # 使用统一的状态文件路径
         status_file = Path(current_dir) / "bot_status.json"
         root_status_file = Path(current_dir).parent / "bot_status.json"
-        
+
         logger.debug(f"尝试读取状态文件: {status_file}, 备选: {root_status_file}")
-        
+
         # 优先读取管理后台目录中的状态文件
         if os.path.exists(status_file):
             with open(status_file, "r", encoding="utf-8") as f:
@@ -519,7 +524,7 @@ def get_bot_status():
                     logger.debug(f"状态文件中包含二维码URL: {status_data['qrcode_url']}")
                 else:
                     logger.debug("状态文件中不包含二维码URL")
-                    
+
                 # 检查日志信息中是否包含二维码URL
                 if "details" in status_data:
                     qrcode_pattern = re.compile(r'获取到登录二维码: (https?://[^\s]+)')
@@ -528,7 +533,7 @@ def get_bot_status():
                         qrcode_url = match.group(1)
                         logger.debug(f"从状态详情中提取到二维码URL: {qrcode_url}")
                         status_data["qrcode_url"] = qrcode_url
-                
+
                 # 检查是否包含uuid，用于构建二维码
                 if "uuid" in status_data:
                     logger.debug(f"状态文件中包含UUID: {status_data['uuid']}")
@@ -536,15 +541,15 @@ def get_bot_status():
                     if "qrcode_url" not in status_data:
                         status_data["qrcode_url"] = f"https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/{status_data['uuid']}"
                         logger.debug(f"根据UUID构建二维码URL: {status_data['qrcode_url']}")
-                
+
                 return status_data
-        
+
         # 如果管理后台目录中的状态文件不存在，尝试读取根目录中的状态文件
         if os.path.exists(root_status_file):
             with open(root_status_file, "r", encoding="utf-8") as f:
                 status_data = json.load(f)
                 logger.debug(f"从根目录读取状态文件成功: {root_status_file}")
-                
+
                 # 特别检查个人信息
                 if "nickname" in status_data:
                     logger.debug(f"状态文件中包含昵称: {status_data['nickname']}")
@@ -552,13 +557,13 @@ def get_bot_status():
                     logger.debug(f"状态文件中包含微信ID: {status_data['wxid']}")
                 if "alias" in status_data:
                     logger.debug(f"状态文件中包含微信号: {status_data['alias']}")
-                
+
                 # 特别检查二维码URL
                 if "qrcode_url" in status_data:
                     logger.debug(f"状态文件中包含二维码URL: {status_data['qrcode_url']}")
                 else:
                     logger.debug("状态文件中不包含二维码URL")
-                    
+
                 # 检查日志信息中是否包含二维码URL
                 if "details" in status_data:
                     qrcode_pattern = re.compile(r'获取到登录二维码: (https?://[^\s]+)')
@@ -567,7 +572,7 @@ def get_bot_status():
                         qrcode_url = match.group(1)
                         logger.debug(f"从状态详情中提取到二维码URL: {qrcode_url}")
                         status_data["qrcode_url"] = qrcode_url
-                
+
                 # 检查是否包含uuid，用于构建二维码
                 if "uuid" in status_data:
                     logger.debug(f"状态文件中包含UUID: {status_data['uuid']}")
@@ -575,7 +580,7 @@ def get_bot_status():
                     if "qrcode_url" not in status_data:
                         status_data["qrcode_url"] = f"https://api.pwmqr.com/qrcode/create/?url=http://weixin.qq.com/x/{status_data['uuid']}"
                         logger.debug(f"根据UUID构建二维码URL: {status_data['qrcode_url']}")
-                
+
                 # 同时将数据复制到管理后台目录中
                 try:
                     with open(status_file, "w", encoding="utf-8") as fw:
@@ -583,9 +588,9 @@ def get_bot_status():
                     logger.debug("已将根目录状态文件同步到管理后台目录")
                 except Exception as e:
                     logger.error(f"同步状态文件失败: {e}")
-                
+
                 return status_data
-        
+
         # 尝试从用户提供的日志中提取二维码信息
         logger.debug("状态文件不存在，尝试从日志中提取二维码信息")
         # 读取最新的日志文件
@@ -597,19 +602,19 @@ def get_bot_status():
                 try:
                     with open(latest_log, "r", encoding="utf-8", errors="ignore") as f:
                         log_content = f.read()
-                        
+
                         # 提取uuid和二维码URL
                         uuid_pattern = re.compile(r'获取到登录uuid: ([^\s]+)')
                         qrcode_pattern = re.compile(r'获取到登录二维码: (https?://[^\s]+)')
-                        
+
                         uuid_match = uuid_pattern.search(log_content)
                         qrcode_match = qrcode_pattern.search(log_content)
-                        
+
                         if uuid_match and qrcode_match:
                             uuid = uuid_match.group(1)
                             qrcode_url = qrcode_match.group(1)
                             logger.debug(f"从日志中提取到UUID: {uuid} 和二维码URL: {qrcode_url}")
-                            
+
                             # 创建状态数据
                             status_data = {
                                 "status": "waiting_login",
@@ -618,7 +623,7 @@ def get_bot_status():
                                 "qrcode_url": qrcode_url,
                                 "details": f"等待微信扫码登录, 二维码: {qrcode_url}"
                             }
-                            
+
                             # 保存状态数据到文件
                             try:
                                 with open(status_file, "w", encoding="utf-8") as fw:
@@ -626,11 +631,11 @@ def get_bot_status():
                                 logger.debug("已将从日志提取的二维码信息保存到状态文件")
                             except Exception as e:
                                 logger.error(f"保存状态文件失败: {e}")
-                            
+
                             return status_data
                 except Exception as e:
                     logger.error(f"读取日志文件失败: {e}")
-        
+
         # 状态文件不存在时返回默认状态
         logger.debug("状态文件不存在，返回默认状态")
         return {
@@ -649,15 +654,15 @@ def init_app():
     # 配置模板目录
     templates_dir = os.path.join(current_dir, "templates")
     templates = Jinja2Templates(directory=templates_dir)
-    
+
     logger.info("初始化FastAPI应用")
-    
+
     # 配置静态文件目录
     static_dir = os.path.join(current_dir, "static")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.mount("/admin/static", StaticFiles(directory=static_dir), name="admin.static")
     logger.info("静态文件目录配置完成")
-    
+
     # 添加中间件
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.add_middleware(
@@ -668,18 +673,18 @@ def init_app():
         allow_headers=["*"],
     )
     logger.info("中间件添加完成")
-    
+
     # 加载路由
     logger.info("开始加载路由...")
     setup_routes()
     logger.info("路由加载完成")
-    
+
     # 日志记录所有已注册的路由
     logger.info("已注册的路由列表:")
     for route in app.routes:
         if hasattr(route, 'path'):
             logger.info(f"路由: {route.path} [{','.join(route.methods) if hasattr(route, 'methods') else ''}]")
-    
+
     logger.info(f"管理后台初始化完成，将在 {config['host']}:{config['port']} 上启动")
 
 def setup_routes():
@@ -687,12 +692,12 @@ def setup_routes():
     @app.get("/login", response_class=HTMLResponse)
     async def login_page(request: Request):
         return templates.TemplateResponse(
-            "login.html", 
+            "login.html",
             {
                 "request": request
             }
         )
-    
+
     # 定时提醒页面路由 - 移动到这里与其他页面路由一起
     @app.get("/reminders", response_class=HTMLResponse)
     async def reminders_page(request: Request):
@@ -702,16 +707,16 @@ def setup_routes():
         if not username:
             logger.warning("未认证用户尝试访问定时提醒页面")
             return RedirectResponse(url="/login?next=/reminders", status_code=302)
-        
+
         logger.info(f"用户 {username} 访问定时提醒页面")
-        
+
         # 确保模板路径正确
         try:
             template_path = "reminders.html"
             logger.debug(f"尝试加载模板: {template_path}")
-            
+
             return templates.TemplateResponse(
-                template_path, 
+                template_path,
                 {
                     "request": request,
                     "username": username,
@@ -722,7 +727,7 @@ def setup_routes():
         except Exception as e:
             logger.exception(f"加载定时提醒页面模板失败: {str(e)}")
             return HTMLResponse(f"<h1>加载定时提醒页面失败</h1><p>错误: {str(e)}</p>")
-    
+
     # 将check_auth函数定义移到这里，在导入reminder_api之前
     async def check_auth(request: Request):
         """检查用户认证状态"""
@@ -731,19 +736,19 @@ def setup_routes():
             if not token:
                 # 尝试从cookie中获取token
                 token = request.cookies.get('token')
-                
+
             if not token:
                 raise HTTPException(status_code=401, detail="未登录或登录已过期")
-                
+
             # 这里可以添加token验证的逻辑
             # 例如验证token的有效性，检查是否过期等
             # 如果验证失败，抛出HTTPException(status_code=401)
-            
+
             return True
         except Exception as e:
             logger.error(f"认证检查失败: {str(e)}")
             raise HTTPException(status_code=401, detail="认证失败")
-    
+
     # 导入并注册提醒相关路由
     try:
         import sys
@@ -751,10 +756,10 @@ def setup_routes():
         current_dir = os.path.dirname(os.path.abspath(__file__))
         if current_dir not in sys.path:
             sys.path.append(current_dir)
-        
+
         # 使用绝对导入
         from reminder_api import register_reminder_routes
-        
+
         # 先定义check_auth函数
         async def check_auth(request: Request):
             """检查用户是否已认证"""
@@ -764,24 +769,24 @@ def setup_routes():
                 if not session_cookie:
                     logger.debug("未找到会话Cookie")
                     return None
-                
+
                 # 调试日志
                 logger.debug(f"获取到会话Cookie: {session_cookie[:15]}...")
-                
+
                 # 解码会话数据
                 try:
                     serializer = URLSafeSerializer(config["secret_key"], "session")
                     session_data = serializer.loads(session_cookie)
-                    
+
                     # 输出会话数据，辅助调试
                     logger.debug(f"解析会话数据成功: {session_data}")
-                    
+
                     # 检查会话是否已过期
                     expires = session_data.get("expires", 0)
                     if expires < time.time():
                         logger.debug(f"会话已过期: 当前时间 {time.time()}, 过期时间 {expires}")
                         return None
-                    
+
                     # 会话有效
                     logger.debug(f"会话有效，用户: {session_data.get('username')}")
                     return session_data.get("username")
@@ -791,7 +796,7 @@ def setup_routes():
             except Exception as e:
                 logger.error(f"检查认证失败: {str(e)}")
                 return None
-        
+
         # 然后注册路由，传入check_auth函数
         register_reminder_routes(app, check_auth)
         logger.info("提醒API路由注册成功")
@@ -799,7 +804,7 @@ def setup_routes():
         logger.error(f"注册提醒API路由失败: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-    
+
     # API: 重启容器
     @app.post("/api/system/restart", response_class=JSONResponse)
     async def api_restart_container(request: Request):
@@ -812,10 +817,10 @@ def setup_routes():
         except Exception as e:
             logger.error(f"认证检查失败: {str(e)}")
             return JSONResponse(status_code=401, content={"success": False, "error": "认证失败"})
-        
+
         try:
             logger.info(f"用户 {username} 请求重启容器")
-            
+
             # 创建一个后台任务来执行重启
             async def restart_task():
                 # 在函数内部导入所需模块，避免作用域问题
@@ -824,19 +829,19 @@ def setup_routes():
                 import asyncio
                 import subprocess
                 from pathlib import Path
-                
+
                 # 等待1秒让响应先返回
                 await asyncio.sleep(1)
                 logger.warning("正在重启容器...")
-                
+
                 # 检测是否在Docker容器中运行
                 in_docker = os.path.exists('/.dockerenv') or os.path.exists('/app/.dockerenv')
                 logger.info(f"是否在Docker环境中: {in_docker}")
-                
+
                 if in_docker:
                     # Docker环境下的重启策略
                     logger.info("在Docker环境中运行，使用Docker特定的重启方法")
-                    
+
                     # 方法1: 尝试向自己发送SIGTERM信号，让Docker重启策略生效
                     try:
                         import signal
@@ -846,7 +851,7 @@ def setup_routes():
                         await asyncio.sleep(5)
                     except Exception as e:
                         logger.error(f"发送SIGTERM失败: {e}")
-                    
+
                     # 方法2: 尝试使用docker命令重启当前容器
                     try:
                         # 获取当前容器ID
@@ -868,27 +873,27 @@ def setup_routes():
                                         break
                     except Exception as e:
                         logger.error(f"使用docker命令重启失败: {e}")
-                    
+
                     # 方法3: 最后的方法，直接退出进程，依靠Docker的自动重启策略
                     logger.info("使用最后的方法: 直接退出进程")
                     os._exit(1)  # 使用非零退出码，通常会触发Docker的重启策略
-                
+
                 else:
                     # 非Docker环境下的重启策略
                     # 获取当前脚本的路径和执行命令
                     current_file = os.path.abspath(__file__)
                     parent_dir = os.path.dirname(current_file)
                     run_server_path = os.path.join(parent_dir, "run_server.py")
-                    
+
                     # 确定Python解释器路径
                     python_executable = sys.executable or "python"
-                    
+
                     # 获取当前工作目录
                     cwd = os.getcwd()
-                    
+
                     # 创建一个重启脚本，保证在当前进程结束后仍能启动新进程
                     restart_script = os.path.join(parent_dir, "restart_helper.py")
-                    
+
                     logger.info(f"创建重启辅助脚本: {restart_script}")
                     try:
                         with open(restart_script, 'w') as f:
@@ -915,31 +920,31 @@ except:
                     except Exception as e:
                         logger.error(f"创建重启脚本失败: {e}")
                         return
-                    
+
                     # 使脚本可执行
                     try:
                         os.chmod(restart_script, 0o755)
                     except Exception as e:
                         logger.warning(f"设置重启脚本权限失败: {e}")
-                    
+
                     # 启动重启脚本
                     logger.info(f"启动重启脚本: {restart_script}")
                     try:
                         if sys.platform.startswith('win'):
                             # Windows
-                            subprocess.Popen([python_executable, restart_script], 
+                            subprocess.Popen([python_executable, restart_script],
                                             creationflags=subprocess.DETACHED_PROCESS)
                         else:
                             # Linux/Unix
-                            subprocess.Popen([python_executable, restart_script], 
+                            subprocess.Popen([python_executable, restart_script],
                                             start_new_session=True)
                     except Exception as e:
                         logger.error(f"启动重启脚本失败: {e}")
                         return
-                
+
                 # 等待一点时间让重启脚本启动
                 await asyncio.sleep(1)
-                
+
                 # 结束当前进程
                 logger.info("正在关闭当前进程...")
                 try:
@@ -947,10 +952,10 @@ except:
                 except Exception as e:
                     logger.error(f"关闭进程失败: {e}")
                     sys.exit(0)
-            
+
             # 启动后台任务
             asyncio.create_task(restart_task())
-            
+
             # 使用明确的JSONResponse返回
             return JSONResponse(content={
                 "success": True,
@@ -962,7 +967,7 @@ except:
                 "success": False,
                 "error": f"重启容器失败: {str(e)}"
             })
-    
+
     # 用户登录API
     @app.post("/api/auth/login", response_class=JSONResponse)
     async def login_api(request: Request, response: Response):
@@ -971,7 +976,7 @@ except:
             username = data.get("username")
             password = data.get("password")
             remember = data.get("remember", False)
-            
+
             # 验证用户名和密码
             if username == config["username"] and password == config["password"]:
                 # 创建会话数据
@@ -980,31 +985,31 @@ except:
                     "username": username,
                     "expires": time.time() + (30 * 24 * 60 * 60 if remember else 24 * 60 * 60)  # 30天或1天
                 }
-                
+
                 # 序列化会话数据
                 serializer = URLSafeSerializer(config["secret_key"], "session")
                 session_str = serializer.dumps(session_data)
-                
+
                 # 直接设置Cookie
                 response.set_cookie(
-                    key="session", 
+                    key="session",
                     value=session_str,
                     max_age=30 * 24 * 60 * 60 if remember else None,  # 30天或浏览器关闭时
                     path="/",
                     httponly=True,
                     samesite="lax"
                 )
-                
+
                 # 调试日志
                 logger.debug(f"用户 {username} 登录成功，已设置会话Cookie，有效期：{'30天' if remember else '浏览器会话'}")
-                
+
                 return {"success": True, "message": "登录成功"}
             else:
                 return {"success": False, "error": "用户名或密码错误"}
         except Exception as e:
             logger.error(f"登录处理出错: {str(e)}")
             return {"success": False, "error": f"登录处理出错: {str(e)}"}
-    
+
     # 检查会话认证
     async def check_auth(request: Request):
         """检查用户是否已认证"""
@@ -1014,24 +1019,24 @@ except:
             if not session_cookie:
                 logger.debug("未找到会话Cookie")
                 return None
-            
+
             # 调试日志
             logger.debug(f"获取到会话Cookie: {session_cookie[:15]}...")
-            
+
             # 解码会话数据
             try:
                 serializer = URLSafeSerializer(config["secret_key"], "session")
                 session_data = serializer.loads(session_cookie)
-                
+
                 # 输出会话数据，辅助调试
                 logger.debug(f"解析会话数据成功: {session_data}")
-                
+
                 # 检查会话是否已过期
                 expires = session_data.get("expires", 0)
                 if expires < time.time():
                     logger.debug(f"会话已过期: 当前时间 {time.time()}, 过期时间 {expires}")
                     return None
-                
+
                 # 会话有效
                 logger.debug(f"会话有效，用户: {session_data.get('username')}")
                 return session_data.get("username")
@@ -1058,15 +1063,15 @@ except:
         if not username:
             # 未认证，重定向到登录页面
             return RedirectResponse(url="/login")
-        
+
         # 获取系统状态信息
         system_info = get_system_info()
         system_status = get_system_status()
-        
+
         return templates.TemplateResponse(
-            "index.html", 
+            "index.html",
             {
-                "request": request, 
+                "request": request,
                 "bot": bot_instance,
                 "active_page": "index",
                 "system_info": system_info,
@@ -1078,7 +1083,7 @@ except:
                 "current_time": datetime.now().strftime("%H:%M:%S")
             }
         )
-    
+
     @app.get("/index", response_class=HTMLResponse)
     async def index(request: Request):
         # 检查认证状态
@@ -1086,15 +1091,15 @@ except:
         if not username:
             # 未认证，重定向到登录页面
             return RedirectResponse(url="/login")
-        
+
         # 获取系统状态信息
         system_info = get_system_info()
         system_status = get_system_status()
-        
+
         return templates.TemplateResponse(
-            "index.html", 
+            "index.html",
             {
-                "request": request, 
+                "request": request,
                 "bot": bot_instance,
                 "active_page": "index",
                 "system_info": system_info,
@@ -1106,7 +1111,7 @@ except:
                 "current_time": datetime.now().strftime("%H:%M:%S")
             }
         )
-    
+
     # 插件管理页面
     @app.get("/plugins", response_class=HTMLResponse)
     async def plugins_page(request: Request):
@@ -1115,16 +1120,16 @@ except:
         if not username:
             # 未认证，重定向到登录页面
             return RedirectResponse(url="/login")
-        
+
         return templates.TemplateResponse(
-            "plugins.html", 
+            "plugins.html",
             {
-                "request": request, 
+                "request": request,
                 "bot": bot_instance,
                 "active_page": "plugins"
             }
         )
-    
+
     # 联系人页面
     @app.get("/contacts", response_class=HTMLResponse)
     async def contacts_page(request: Request):
@@ -1134,7 +1139,7 @@ except:
             if not username:
                 # 未认证，重定向到登录页面
                 return RedirectResponse(url="/login?next=/contacts", status_code=303)
-                
+
             logger.debug(f"用户 {username} 访问联系人页面")
             # 认证成功，显示联系人页面
             return templates.TemplateResponse("contacts.html", {
@@ -1144,7 +1149,7 @@ except:
         except Exception as e:
             logger.error(f"访问联系人页面失败: {str(e)}")
             raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}")
-    
+
     # 系统状态页面
     @app.get("/system", response_class=HTMLResponse)
     async def system_page(request: Request):
@@ -1153,24 +1158,24 @@ except:
             username = await check_auth(request)
         except HTTPException:
             return RedirectResponse(url="/login?next=/system")
-        
+
         # 获取系统状态信息
         try:
             system_status = get_system_status()
         except Exception as e:
             logger.error(f"获取系统状态失败: {str(e)}")
             system_status = {}
-        
+
         # 返回系统页面
         return templates.TemplateResponse(
-            "system.html", 
+            "system.html",
             {
                 "request": request,
                 "active_page": "system",
                 "system_status": system_status
             }
         )
-        
+
     # 添加终端页面路由
     @app.get("/terminal", response_class=HTMLResponse)
     async def terminal_page(request: Request):
@@ -1179,17 +1184,17 @@ except:
             username = await check_auth(request)
         except HTTPException:
             return RedirectResponse(url="/login?next=/terminal")
-        
+
         # 返回终端页面
         logger.info(f"用户请求访问终端页面")
         return templates.TemplateResponse(
-            "terminal.html", 
+            "terminal.html",
             {
                 "request": request,
                 "active_page": "terminal"
             }
         )
-    
+
     # API: 系统状态 (需要认证)
     @app.get("/api/system/status", response_class=JSONResponse)
     async def api_system_status(request: Request):
@@ -1197,12 +1202,12 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         return {
             "success": True,
             "data": get_system_status()
         }
-    
+
     # API: 系统信息 (需要认证)
     @app.get("/api/system/info", response_class=JSONResponse)
     async def api_system_info(request: Request):
@@ -1210,7 +1215,7 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             # 获取系统信息
             info = get_system_info()
@@ -1237,7 +1242,7 @@ except:
                 },
                 "error": str(e)
             })
-    
+
     # API: 机器人状态 (需要认证)
     @app.get("/api/bot/status", response_class=JSONResponse)
     async def api_bot_status(request: Request):
@@ -1246,43 +1251,43 @@ except:
         # 不需要认证也可以查看状态
         #if not username:
         #    return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             # 获取状态数据
             status_data = get_bot_status()
             logger.debug(f"API获取bot状态: {status_data}")
-            
+
             # 添加bot实例的一些信息（如果可用）
             if bot_instance and hasattr(bot_instance, 'wxid') and status_data.get("status") in ["online", "ready"]:
                 try:
                     # 避免覆盖状态文件中已有的信息
                     if not status_data.get("nickname"):
                         status_data["nickname"] = bot_instance.nickname
-                    if not status_data.get("wxid"):    
+                    if not status_data.get("wxid"):
                         status_data["wxid"] = bot_instance.wxid
                     if not status_data.get("alias"):
                         status_data["alias"] = bot_instance.alias
-                    
+
                     logger.debug(f"从bot_instance添加的信息: nickname={bot_instance.nickname}, wxid={bot_instance.wxid}, alias={bot_instance.alias}")
                 except Exception as e:
                     logger.error(f"获取bot实例信息失败: {e}")
             else:
                 # 直接从状态文件中获取信息
                 logger.debug(f"bot_instance不可用或状态不是online/ready，使用状态文件中的信息")
-                
+
                 # 确保状态数据中有个人信息字段(即使是空值)
                 for field in ["nickname", "wxid", "alias"]:
                     if field not in status_data:
                         status_data[field] = None
-            
+
             # 再次确认返回的字段
             logger.debug(f"最终返回的状态数据: nickname={status_data.get('nickname')}, wxid={status_data.get('wxid')}, alias={status_data.get('alias')}")
-            
+
             return {"success": True, "data": status_data}
         except Exception as e:
             logger.error(f"获取bot状态失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # API: 获取插件列表
     @app.get("/api/plugins", response_class=JSONResponse)
     async def api_plugins_list(request: Request):
@@ -1290,23 +1295,23 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             # 使用try-except语句导入插件管理器
             try:
                 from utils.plugin_manager import plugin_manager
-                
+
                 # 获取插件信息列表
                 plugins_info = plugin_manager.get_plugin_info()
-                
+
                 # 确保返回的数据是可序列化的
                 if not isinstance(plugins_info, list):
                     plugins_info = []
                     logger.error("plugin_manager.get_plugin_info()返回了非列表类型")
-                
+
                 # 记录调试信息
                 logger.debug(f"获取到{len(plugins_info)}个插件信息")
-                
+
                 return {
                     "success": True,
                     "data": {
@@ -1319,7 +1324,7 @@ except:
         except Exception as e:
             logger.error(f"获取插件信息失败: {str(e)}")
             return {"success": False, "error": f"获取插件信息失败: {str(e)}"}
-    
+
     # API: 启用插件
     @app.post("/api/plugins/{plugin_name}/enable", response_class=JSONResponse)
     async def api_enable_plugin(plugin_name: str, request: Request):
@@ -1327,16 +1332,16 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             from utils.plugin_manager import plugin_manager
-            
+
             success = await plugin_manager.load_plugin_from_directory(bot_instance, plugin_name)
             return {"success": success}
         except Exception as e:
             logger.error(f"启用插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # API: 禁用插件
     @app.post("/api/plugins/{plugin_name}/disable", response_class=JSONResponse)
     async def api_disable_plugin(plugin_name: str, request: Request):
@@ -1344,16 +1349,16 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             from utils.plugin_manager import plugin_manager
-            
+
             success = await plugin_manager.unload_plugin(plugin_name)
             return {"success": success}
         except Exception as e:
             logger.error(f"禁用插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # 辅助函数: 查找插件配置路径
     def find_plugin_config_path(plugin_id: str):
         """查找插件配置文件路径，尝试多个可能的位置"""
@@ -1364,12 +1369,12 @@ except:
             os.path.abspath(os.path.join("plugins", plugin_id, "config.toml")),  # 绝对路径
             os.path.join(os.path.dirname(os.path.dirname(current_dir)), "plugins", plugin_id, "config.toml")  # 项目根目录
         ]
-        
+
         # 检查环境变量定义的数据目录
         data_dir_env = os.environ.get('XYBOT_DATA_DIR')
         if data_dir_env:
             possible_paths.append(os.path.join(data_dir_env, "plugins", plugin_id, "config.toml"))
-        
+
         # 检查Docker环境特定路径
         if os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv'):
             docker_paths = [
@@ -1378,13 +1383,13 @@ except:
                 os.path.join("/usr/local/xybot/plugins", plugin_id, "config.toml")
             ]
             possible_paths.extend(docker_paths)
-        
+
         # 查找第一个存在的路径
         for path in possible_paths:
             if os.path.exists(path):
                 logger.debug(f"找到插件配置文件: {path}")
                 return path
-        
+
         return None
 
     # API: 获取插件配置
@@ -1394,19 +1399,19 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             import tomllib
-            
+
             # 查找配置文件路径
             config_path = find_plugin_config_path(plugin_id)
             if not config_path:
                 return {"success": False, "message": f"插件 {plugin_id} 的配置文件不存在"}
-            
+
             # 读取配置
             with open(config_path, "rb") as f:
                 config_content = tomllib.load(f)
-            
+
             return {
                 "success": True,
                 "config": config_content
@@ -1422,7 +1427,7 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             # 查找配置文件路径
             config_path = find_plugin_config_path(plugin_id)
@@ -1430,16 +1435,84 @@ except:
                 # 如果配置文件不存在，返回默认位置
                 # 如插件尚未创建配置文件，返回它应该创建的位置
                 config_path = os.path.join("plugins", plugin_id, "config.toml")
-                
+
             # 转换为相对路径，以便在文件管理器中打开
             relative_path = os.path.normpath(config_path)
-            
+
             return {
                 "success": True,
                 "config_file": relative_path
             }
         except Exception as e:
             logger.error(f"获取插件配置文件路径失败: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    # API: 获取插件README.md内容
+    @app.get("/api/plugin_readme", response_class=JSONResponse)
+    async def api_get_plugin_readme(plugin_id: str, request: Request):
+        # 检查认证状态
+        username = await check_auth(request)
+        if not username:
+            return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
+
+        try:
+            # 查找插件目录
+            plugin_dir = None
+            readme_path = None
+
+            # 首先检查是否有与插件名相同的目录
+            if os.path.isdir(f"plugins/{plugin_id}") and os.path.exists(f"plugins/{plugin_id}/README.md"):
+                plugin_dir = plugin_id
+                readme_path = f"plugins/{plugin_id}/README.md"
+            else:
+                # 遍历所有插件目录
+                for dirname in os.listdir("plugins"):
+                    if os.path.isdir(f"plugins/{dirname}"):
+                        # 检查目录中是否有与插件同名的类
+                        if os.path.exists(f"plugins/{dirname}/main.py"):
+                            try:
+                                # 先检查文件内容是否包含插件类名
+                                with open(f"plugins/{dirname}/main.py", "r", encoding="utf-8") as f:
+                                    content = f.read()
+                                    if f"class {plugin_id}" in content:
+                                        plugin_dir = dirname
+                                        readme_path = f"plugins/{dirname}/README.md"
+                                        if os.path.exists(readme_path):
+                                            break
+
+                                # 如果没找到，再尝试加载模块检查
+                                if not plugin_dir:
+                                    module = importlib.import_module(f"plugins.{dirname}.main")
+                                    for name, obj in inspect.getmembers(module):
+                                        if (inspect.isclass(obj) and
+                                            issubclass(obj, PluginBase) and
+                                            obj != PluginBase and
+                                            obj.__name__ == plugin_id):
+                                            # 找到了插件目录，检查README.md
+                                            plugin_dir = dirname
+                                            readme_path = f"plugins/{dirname}/README.md"
+                                            break
+                            except Exception as e:
+                                logger.error(f"检查插件{plugin_id}的README.md时出错: {str(e)}")
+
+            if not plugin_dir:
+                return {"success": False, "message": f"找不到插件 {plugin_id} 的目录"}
+
+            if not readme_path or not os.path.exists(readme_path):
+                return {"success": False, "message": f"插件 {plugin_id} 的README.md文件不存在"}
+
+            # 读取README.md内容
+            with open(readme_path, "r", encoding="utf-8") as f:
+                readme_content = f.read()
+
+            return {
+                "success": True,
+                "readme": readme_content,
+                "plugin_id": plugin_id,
+                "plugin_dir": plugin_dir
+            }
+        except Exception as e:
+            logger.error(f"获取插件README.md失败: {str(e)}")
             return {"success": False, "error": str(e)}
 
     # API: 保存插件配置
@@ -1449,23 +1522,23 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             # 获取请求数据
             data = await request.json()
             plugin_id = data.get('plugin_id')
             config = data.get('config')
-            
+
             if not plugin_id or not config:
                 return {"success": False, "message": "缺少必要参数"}
-            
+
             # 找到配置文件路径
             config_path = find_plugin_config_path(plugin_id)
             if not config_path:
                 # 如果配置文件不存在，创建默认位置
                 config_path = os.path.join("plugins", plugin_id, "config.toml")
                 os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            
+
             # 生成TOML内容
             toml_content = ""
             for section, values in config.items():
@@ -1478,16 +1551,16 @@ except:
                     else:
                         toml_content += f"{key} = {value}\n"
                 toml_content += "\n"
-            
+
             # 保存配置
             with open(config_path, "w", encoding="utf-8") as f:
                 f.write(toml_content)
-            
+
             return {"success": True, "message": "配置已保存"}
         except Exception as e:
             logger.error(f"保存插件配置失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # 插件市场API配置
     PLUGIN_MARKET_API = {
         "BASE_URL": "https://xianan.xin:1562/api",  # 修改这一行
@@ -1499,30 +1572,30 @@ except:
         "TEMP_DIR": os.path.join(current_dir, "_temp"),
         "SYNC_INTERVAL": 3600  # 1小时
     }
-    
+
     # 确保缓存和临时目录存在
     os.makedirs(PLUGIN_MARKET_API["CACHE_DIR"], exist_ok=True)
     os.makedirs(PLUGIN_MARKET_API["TEMP_DIR"], exist_ok=True)
-    
+
     # 获取客户端唯一标识
     def get_client_id():
         client_id_file = os.path.join(PLUGIN_MARKET_API["CACHE_DIR"], "client_id")
-        
+
         # 如果文件存在，读取ID
         if os.path.exists(client_id_file):
             with open(client_id_file, "r") as f:
                 return f.read().strip()
-        
+
         # 生成新ID
         import uuid
         client_id = str(uuid.uuid4())
-        
+
         # 保存到文件
         with open(client_id_file, "w") as f:
             f.write(client_id)
-        
+
         return client_id
-    
+
     # 获取Bot版本信息
     def get_bot_version():
         """获取Bot版本信息"""
@@ -1531,7 +1604,7 @@ except:
             return VERSION
         except ImportError:
             return "1.0.0"
-    
+
     # 获取系统信息
     def get_system_info():
         import platform
@@ -1541,7 +1614,7 @@ except:
             "processor": platform.processor(),
             "python": platform.python_version()
         }
-    
+
     # API: 获取插件市场列表
     @app.get("/api/plugin_market", response_class=JSONResponse)
     async def api_get_plugin_market(request: Request):
@@ -1549,7 +1622,7 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             # 实例化httpx客户端
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -1559,44 +1632,44 @@ except:
                     "X-Bot-Version": get_bot_version(),
                     "User-Agent": f"XYBot/{get_bot_version()}"
                 }
-                
+
                 try:
                     # 请求远程API
                     response = await client.get(
                         f"{PLUGIN_MARKET_API['BASE_URL']}{PLUGIN_MARKET_API['LIST']}",
                         headers=headers
                     )
-                    
+
                     response.raise_for_status()
                     data = response.json()
-                    
+
                     # 缓存结果
                     with open(PLUGIN_MARKET_API["CACHE_FILE"], "w", encoding="utf-8") as f:
                         json.dump({
                             "timestamp": int(time.time()),
                             "data": data
                         }, f, ensure_ascii=False, indent=2)
-                    
+
                     return data
-                    
+
                 except (httpx.HTTPError, httpx.TimeoutException) as e:
                     logger.error(f"从远程获取插件市场数据失败: {str(e)}")
                     # 尝试从缓存加载
                     return await load_plugin_market_from_cache()
-                    
+
         except Exception as e:
             logger.error(f"获取插件市场失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # 从缓存加载插件市场数据
     async def load_plugin_market_from_cache():
         try:
             if not os.path.exists(PLUGIN_MARKET_API["CACHE_FILE"]):
                 return {"success": False, "error": "无法连接到插件市场服务器，且无本地缓存"}
-            
+
             with open(PLUGIN_MARKET_API["CACHE_FILE"], "r", encoding="utf-8") as f:
                 cache_data = json.load(f)
-            
+
             # 检查缓存是否过期（7天）
             if int(time.time()) - cache_data.get("timestamp", 0) > 7 * 24 * 3600:
                 return {
@@ -1604,17 +1677,17 @@ except:
                     "plugins": cache_data.get("data", {}).get("plugins", []),
                     "message": "显示的是缓存数据，可能已过期"
                 }
-            
+
             return {
                 "success": True,
                 "plugins": cache_data.get("data", {}).get("plugins", []),
                 "message": "显示的是缓存数据"
             }
-            
+
         except Exception as e:
             logger.error(f"从缓存加载插件市场数据失败: {str(e)}")
             return {"success": False, "error": f"加载缓存数据失败: {str(e)}"}
-    
+
     # API: 提交插件到市场
     @app.post("/api/plugin_market/submit", response_class=JSONResponse)
     async def api_submit_plugin(request: Request):
@@ -1622,17 +1695,17 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             # 获取表单数据
             data = await request.json()
-            
+
             # 验证必要字段
             required_fields = ["name", "description", "author", "version", "github_url"]
             for field in required_fields:
                 if not data.get(field):
                     return {"success": False, "error": f"缺少必要字段: {field}"}
-            
+
             # 添加客户端信息
             if "client_info" not in data:
                 data["client_info"] = {
@@ -1640,11 +1713,11 @@ except:
                     "version": get_bot_version(),
                     "system": get_system_info()
                 }
-            
+
             # 添加状态和时间戳
             data["status"] = "pending"
             data["submitted_at"] = int(time.time())
-            
+
             # 如果有图标，处理Base64
             if "icon" in data and data["icon"]:
                 try:
@@ -1657,7 +1730,7 @@ except:
                     logger.error(f"处理图标失败: {str(e)}")
                     # 移除有问题的图标
                     data.pop("icon", None)
-            
+
             async with httpx.AsyncClient(timeout=15.0) as client:
                 # 构建请求头
                 headers = {
@@ -1666,7 +1739,7 @@ except:
                     "Content-Type": "application/json",
                     "User-Agent": f"XYBot/{get_bot_version()}"
                 }
-                
+
                 try:
                     # 发送到远程API
                     response = await client.post(
@@ -1674,34 +1747,34 @@ except:
                         headers=headers,
                         json=data
                     )
-                    
+
                     response.raise_for_status()
                     result = response.json()
-                    
+
                     return result
-                    
+
                 except (httpx.HTTPError, httpx.TimeoutException) as e:
                     logger.error(f"提交插件到远程服务器失败: {str(e)}")
-                    
+
                     # 保存到本地临时文件，稍后同步
                     temp_file = os.path.join(
-                        PLUGIN_MARKET_API["TEMP_DIR"], 
+                        PLUGIN_MARKET_API["TEMP_DIR"],
                         f"plugin_submit_{int(time.time())}_{data['name'].replace(' ', '_')}.json"
                     )
-                    
+
                     with open(temp_file, "w", encoding="utf-8") as f:
                         json.dump(data, f, ensure_ascii=False, indent=2)
-                    
+
             return {
                 "success": False,
                         "error": f"无法连接到服务器: {str(e)}",
                         "message": "提交已保存到本地，将在网络恢复后自动同步"
                     }
-                    
+
         except Exception as e:
             logger.error(f"提交插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # API: 安装插件
     @app.post("/api/plugin_market/install", response_class=JSONResponse)
     async def api_install_plugin(request: Request):
@@ -1709,17 +1782,17 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             # 获取请求数据
             data = await request.json()
             plugin_data = data.get('plugin_data', {})
             plugin_name = plugin_data.get('name')
             github_url = plugin_data.get('github_url')
-            
+
             if not plugin_name or not github_url:
                 return {"success": False, "error": "缺少必要参数"}
-            
+
             # 创建临时目录
             import tempfile
             import shutil
@@ -1729,23 +1802,23 @@ except:
             import sys
             import subprocess
             from pathlib import Path
-            
+
             temp_dir = tempfile.mkdtemp()
             plugin_dir = os.path.join("plugins", plugin_name)
-            
+
             # 预先初始化config_backup变量，防止未定义错误
             config_backup = None
             config_path = os.path.join(plugin_dir, "config.toml")
-            
+
             try:
                 # 构建 ZIP 下载链接
                 if github_url.endswith('.git'):
                     github_url = github_url[:-4]
-                
+
                 # 尝试下载main分支
                 zip_url = f"{github_url}/archive/refs/heads/main.zip"
                 logger.info(f"正在从 {zip_url} 下载插件...")
-                
+
                 try:
                     response = requests.get(zip_url, timeout=30)
                     if response.status_code != 200:
@@ -1753,32 +1826,32 @@ except:
                         zip_url = f"{github_url}/archive/refs/heads/master.zip"
                         logger.info(f"尝试从master分支下载: {zip_url}")
                         response = requests.get(zip_url, timeout=30)
-                        
+
                     if response.status_code != 200:
                         return {"success": False, "error": f"下载插件失败: HTTP {response.status_code}"}
-                    
+
                     # 解压ZIP文件到临时目录
                     z = zipfile.ZipFile(io.BytesIO(response.content))
                     z.extractall(temp_dir)
-                    
+
                     # 检查插件是否已存在
                     if os.path.exists(plugin_dir):
                         # 如果存在，先备份配置文件
                         if os.path.exists(config_path):
                             with open(config_path, "rb") as f:
                                 config_backup = f.read()
-                        
+
                         # 删除旧目录
                         shutil.rmtree(plugin_dir)
-                    
+
                     # 创建插件目录
                     os.makedirs(plugin_dir, exist_ok=True)
-                    
+
                     # ZIP文件解压后通常会有一个包含所有文件的顶级目录
                     extracted_dirs = os.listdir(temp_dir)
                     if len(extracted_dirs) == 1:
                         extract_subdir = os.path.join(temp_dir, extracted_dirs[0])
-                        
+
                         # 将文件从解压的子目录复制到目标目录
                         for item in os.listdir(extract_subdir):
                             s = os.path.join(extract_subdir, item)
@@ -1796,7 +1869,7 @@ except:
                                 shutil.copytree(s, d, dirs_exist_ok=True)
                             else:
                                 shutil.copy2(s, d)
-                    
+
                     # 恢复配置文件（如果有）
                     if config_backup:
                         with open(config_path, "wb") as f:
@@ -1807,7 +1880,7 @@ except:
                         if not os.path.exists(config_path):
                             with open(config_path, "w", encoding="utf-8") as f:
                                 f.write("# 插件配置文件\n")
-                    
+
                     # 安装依赖
                     requirements_file = os.path.join(plugin_dir, "requirements.txt")
                     if os.path.exists(requirements_file):
@@ -1819,47 +1892,47 @@ except:
                             text=True
                         )
                         stdout, stderr = process.communicate()
-                        
+
                         if process.returncode != 0:
                             logger.warning(f"安装依赖可能失败: {stderr}")
-                    
+
                     # 安装完成后，立即加载插件
                     try:
                         from utils.plugin_manager import plugin_manager
                         await plugin_manager.load_plugin_from_directory(bot_instance, plugin_name)
                     except Exception as e:
                         logger.warning(f"自动加载插件失败，用户需要手动启用: {str(e)}")
-                    
+
                     return {"success": True, "message": "插件安装成功"}
-                    
+
                 except Exception as e:
                     logger.error(f"下载和安装插件失败: {str(e)}")
                     return {"success": False, "error": f"安装失败: {str(e)}"}
-                
+
             finally:
                 # 清理临时目录
                 if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir)
-            
+
         except Exception as e:
             logger.error(f"安装插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # 周期性任务：同步本地待处理的插件提交到服务器
     async def sync_pending_plugins():
         while True:
             try:
                 # 等待一段时间
                 await asyncio.sleep(PLUGIN_MARKET_API["SYNC_INTERVAL"])
-                
+
                 # 检查临时目录中的提交文件
                 temp_files = glob.glob(os.path.join(PLUGIN_MARKET_API["TEMP_DIR"], "plugin_submit_*.json"))
-                
+
                 if not temp_files:
                     continue
-                
+
                 logger.info(f"开始同步 {len(temp_files)} 个待处理的插件提交")
-                
+
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     # 构建请求头
                     headers = {
@@ -1868,42 +1941,42 @@ except:
                         "Content-Type": "application/json",
                         "User-Agent": f"XYBot/{get_bot_version()}"
                     }
-                    
+
                     for temp_file in temp_files:
                         try:
                             # 读取提交数据
                             with open(temp_file, "r", encoding="utf-8") as f:
                                 data = json.load(f)
-                            
+
                             # 发送到远程API
                             response = await client.post(
                                 f"{PLUGIN_MARKET_API['BASE_URL']}{PLUGIN_MARKET_API['SUBMIT']}",
                                 headers=headers,
                                 json=data
                             )
-                            
+
                             if response.status_code == 200:
                                 # 提交成功，删除临时文件
                                 os.remove(temp_file)
                                 logger.info(f"成功同步插件提交: {os.path.basename(temp_file)}")
                             else:
                                 logger.warning(f"同步插件提交失败: {response.status_code} - {response.text}")
-                                
+
                         except Exception as e:
                             logger.error(f"同步插件提交失败: {str(e)}")
-                
+
             except Exception as e:
                 logger.error(f"执行同步待处理插件任务失败: {str(e)}")
-    
+
     # 周期性任务：缓存插件市场数据
     async def cache_plugin_market_data():
         while True:
             try:
                 # 等待一段时间
                 await asyncio.sleep(PLUGIN_MARKET_API["SYNC_INTERVAL"])
-                
+
                 logger.info("开始缓存插件市场数据")
-                
+
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     # 构建请求头
                     headers = {
@@ -1911,34 +1984,34 @@ except:
                         "X-Bot-Version": get_bot_version(),
                         "User-Agent": f"XYBot/{get_bot_version()}"
                     }
-                    
+
                     try:
                         # 请求远程API
                         response = await client.get(
                             f"{PLUGIN_MARKET_API['BASE_URL']}{PLUGIN_MARKET_API['LIST']}",
                             headers=headers
                         )
-                        
+
                         if response.status_code == 200:
                             data = response.json()
-                            
+
                             # 缓存结果
                             with open(PLUGIN_MARKET_API["CACHE_FILE"], "w", encoding="utf-8") as f:
                                 json.dump({
                                     "timestamp": int(time.time()),
                                     "data": data
                                 }, f, ensure_ascii=False, indent=2)
-                                
+
                             logger.info("成功缓存插件市场数据")
                         else:
                             logger.warning(f"缓存插件市场数据失败: {response.status_code} - {response.text}")
-                            
+
                     except Exception as e:
                         logger.error(f"获取插件市场数据失败: {str(e)}")
-                
+
             except Exception as e:
                 logger.error(f"执行缓存插件市场数据任务失败: {str(e)}")
-    
+
     # 启动周期性任务
     @app.on_event("startup")
     async def start_periodic_tasks():
@@ -1946,7 +2019,7 @@ except:
         asyncio.create_task(sync_pending_plugins())
         # 启动缓存插件市场数据任务
         asyncio.create_task(cache_plugin_market_data())
-    
+
     # API: 获取LoginQR接口
     @app.get('/api/bot/login_qrcode')
     async def api_login_qrcode(request: Request):
@@ -1954,9 +2027,9 @@ except:
         try:
             # 读取bot状态 - 修复：get_bot_status是同步函数，不需要await
             status_data = get_bot_status()
-            
+
             logger.debug(f"获取二维码API被调用，状态数据: {status_data}")
-            
+
             # 先检查状态数据中是否有二维码URL
             if status_data and "qrcode_url" in status_data:
                 logger.info(f"从状态文件获取到二维码URL: {status_data['qrcode_url']}")
@@ -1965,7 +2038,7 @@ except:
                     status_data["timestamp"] = time.time()
                 if "expires_in" not in status_data:
                     status_data["expires_in"] = 240
-                    
+
                 # 当状态文件中的二维码URL是最新的
                 return {
                     "success": True,
@@ -1976,7 +2049,7 @@ except:
                         "uuid": status_data.get("uuid", "")
                     }
                 }
-                
+
             # 检查状态日志中是否有二维码信息
             if status_data and "details" in status_data:
                 logger.debug(f"检查状态详情中的二维码信息: {status_data['details']}")
@@ -1994,14 +2067,14 @@ except:
                             "uuid": status_data.get("uuid", "")
                         }
                     }
-            
+
             # 如果状态文件中没有二维码URL，则尝试从日志中获取
             logger.warning("状态文件中没有二维码URL，尝试从日志获取")
             qrcode_data = await get_qrcode_from_logs()
             if qrcode_data and "qrcode_url" in qrcode_data:
                 # 发现了二维码URL，更新状态
                 logger.info(f"从日志中获取到二维码URL: {qrcode_data['qrcode_url']}")
-                
+
                 # 同时更新状态文件，确保下次能直接从状态文件获取
                 status_path = Path(__file__).parent / "bot_status.json"
                 if status_data:
@@ -2013,11 +2086,11 @@ except:
                         "timestamp": time.time(),
                         **qrcode_data
                     }
-                    
+
                 with open(status_path, "w", encoding="utf-8") as f:
                     json.dump(status_data, f)
                     logger.info("已更新二维码URL到状态文件")
-                
+
                 return {
                     "success": True,
                     "data": {
@@ -2027,7 +2100,7 @@ except:
                         "uuid": qrcode_data.get("uuid", "")
                     }
                 }
-            
+
             # 直接从提供的uuid构建二维码URL
             if status_data and "uuid" in status_data:
                 logger.info(f"尝试从uuid构建二维码URL: {status_data['uuid']}")
@@ -2041,7 +2114,7 @@ except:
                         "uuid": status_data["uuid"]
                     }
                 }
-            
+
             # 如果都没有找到二维码URL，则返回错误
             logger.error("无法获取二维码URL")
             return {
@@ -2055,7 +2128,7 @@ except:
                 "success": False,
                 "error": f"获取登录二维码失败: {str(e)}"
             }
-    
+
     # 路由别名 - 为兼容性提供相同功能的别名路由
     @app.get('/api/login/qrcode')
     async def api_login_qrcode_alias(request: Request):
@@ -2071,51 +2144,51 @@ except:
             if not log_dir.exists():
                 logger.warning("日志目录不存在")
                 return None
-            
+
             # 查找最新的日志文件
             log_files = sorted(log_dir.glob("*.log"), key=lambda x: x.stat().st_mtime, reverse=True)
             if not log_files:
                 logger.warning("未找到日志文件")
                 return None
-            
+
             # 读取最新的日志文件，最后100行
             latest_log = log_files[0]
             logger.debug(f"读取最新日志文件: {latest_log}")
-            
+
             # 使用系统命令获取最后100行
             if os.name == "nt":  # Windows
                 cmd = f'powershell -command "Get-Content -Tail 100 \"{latest_log}\""'
             else:  # Linux/Unix
                 cmd = f'tail -n 100 "{latest_log}"'
-            
+
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             log_content = result.stdout
-            
+
             # 正则表达式匹配二维码URL
             qrcode_pattern = re.compile(r'获取到登录二维码: (https?://[^\s]+)')
             match = qrcode_pattern.search(log_content)
-            
+
             if match:
                 qrcode_url = match.group(1)
                 logger.success(f"从日志中获取到二维码URL: {qrcode_url}")
-                
+
                 # 检查URL有效性
                 if not qrcode_url.startswith("http"):
                     logger.warning(f"获取到的二维码URL格式不正确: {qrcode_url}")
                     return None
-                
+
                 return {
                     "qrcode_url": qrcode_url,
                     "expires_in": 240,  # 默认240秒过期
                     "timestamp": time.time()
                 }
-            
+
             logger.warning("在日志中未找到二维码URL")
             return None
         except Exception as e:
             logger.exception(f"从日志获取二维码URL失败: {e}")
             return None
-    
+
     # WebSocket连接
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
@@ -2148,7 +2221,7 @@ except:
             if not username:
                 # 未认证，重定向到登录页面
                 return RedirectResponse(url="/login", status_code=303)
-                
+
             logger.debug(f"用户 {username} 访问集成文件管理器页面")
             # 认证成功，显示集成了文件管理器的界面
             return templates.TemplateResponse("files_integrated.html", {"request": request})
@@ -2172,7 +2245,7 @@ except:
                 logger.debug("文件管理器页面访问失败：未认证")
                 # 未认证，重定向到登录页面
                 return RedirectResponse(url="/login", status_code=303)
-                
+
             logger.debug(f"用户 {username} 访问文件管理器页面")
             # 认证成功，显示文件管理器页面
             return templates.TemplateResponse("file-manager.html", {"request": request})
@@ -2182,7 +2255,7 @@ except:
                 status_code=500,
                 content={"detail": f"服务器错误: {str(e)}"}
             )
-    
+
     @app.get("/api/files/list")
     async def api_files_list(request: Request, path: str = "/", page: int = 1, limit: int = 100):
         """获取文件列表，支持分页加载"""
@@ -2190,60 +2263,60 @@ except:
         try:
             # 记录调试日志
             logger.debug(f"请求获取文件列表：路径 {path}，页码 {page}，每页数量 {limit}")
-            
+
             # 检查认证状态
             username = await check_auth(request)
             if not username:
                 # 记录调试信息
                 logger.debug("文件列表API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 处理相对路径
             if not path.startswith('/'):
                 path = '/' + path
-            
+
             # 获取完整路径 - 从项目根目录开始
             root_dir = Path(current_dir).parent
             full_path = root_dir / path.lstrip('/')
-            
+
             logger.debug(f"处理文件列表路径: {path} -> {full_path}")
-            
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
                 logger.warning(f"尝试访问不安全的路径: {full_path}")
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法访问项目目录外的文件'
                 })
-            
+
             # 检查路径是否存在
             if not os.path.exists(full_path):
                 logger.warning(f"路径不存在: {full_path}")
                 return JSONResponse(status_code=404, content={
-                    'success': False, 
+                    'success': False,
                     'message': '路径不存在'
                 })
-            
+
             # 检查路径是否是目录
             if not os.path.isdir(full_path):
                 logger.warning(f"路径不是目录: {full_path}")
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '路径不是一个目录'
                 })
-            
+
             # 获取目录内容
             items = []
             total_items = 0
-            
+
             try:
                 # 设置超时控制
                 start_time = time.time()
                 MAX_TIME = 3  # 最多允许3秒处理时间
-                
+
                 # 首先计算总数
                 dir_items = []
                 for item in os.listdir(full_path):
@@ -2251,7 +2324,7 @@ except:
                     if time.time() - start_time > MAX_TIME:
                         logger.warning(f"获取文件列表超时：路径 {path}")
                         break
-                    
+
                     item_path = os.path.join(full_path, item)
                     try:
                         is_dir = os.path.isdir(item_path)
@@ -2259,37 +2332,37 @@ except:
                     except (PermissionError, OSError) as e:
                         logger.warning(f"无法访问文件: {item_path}, 错误: {str(e)}")
                         continue
-                
+
                 # 按类型和名称排序（文件夹在前）
                 dir_items.sort(key=lambda x: (0 if x[2] else 1, x[0].lower()))
-                
+
                 # 计算总数和分页
                 total_items = len(dir_items)
                 total_pages = (total_items + limit - 1) // limit if total_items > 0 else 1
-                
+
                 # 验证页码有效性
                 if page < 1:
                     page = 1
                 if page > total_pages:
                     page = total_pages
-                
+
                 # 计算分页索引
                 start_idx = (page - 1) * limit
                 end_idx = min(start_idx + limit, total_items)
-                
+
                 # 提取当前页的项目
                 page_items = dir_items[start_idx:end_idx]
-                
+
                 # 转换为应答格式
                 for item, item_path, is_dir in page_items:
                     try:
                         item_stat = os.stat(item_path)
-                        
+
                         # 构建相对路径
                         item_rel_path = os.path.join(path, item).replace('\\', '/')
                         if not item_rel_path.startswith('/'):
                             item_rel_path = '/' + item_rel_path
-                        
+
                         # 添加项目信息
                         items.append({
                             'name': item,
@@ -2301,19 +2374,19 @@ except:
                     except (PermissionError, OSError) as e:
                         logger.warning(f"无法获取文件信息: {item_path}, 错误: {str(e)}")
                         continue
-                
+
             except Exception as e:
                 logger.error(f"列出目录内容时出错: {str(e)}")
                 return JSONResponse(status_code=500, content={
-                    'success': False, 
+                    'success': False,
                     'message': f'列出目录内容时出错: {str(e)}'
                 })
-            
+
             logger.debug(f"成功获取路径 {path} 的文件列表，共 {total_items} 项，当前页 {page}/{(total_items + limit - 1) // limit if total_items > 0 else 1}，返回 {len(items)} 项")
-            
+
             # 返回结果包含分页信息
             return JSONResponse(content={
-                'success': True, 
+                'success': True,
                 'items': items,
                 'pagination': {
                     'page': page,
@@ -2322,14 +2395,14 @@ except:
                     'total_pages': (total_items + limit - 1) // limit if total_items > 0 else 1
                 }
             })
-            
+
         except Exception as e:
             logger.error(f"获取文件列表失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'获取文件列表失败: {str(e)}'
             })
-    
+
     @app.get("/api/files/tree")
     async def api_files_tree(request: Request):
         """获取文件夹树结构"""
@@ -2341,13 +2414,13 @@ except:
                 # 记录调试信息
                 logger.debug("文件树API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 获取项目根目录
             root_dir = Path(current_dir).parent
-            
+
             # 递归构建文件夹树
             def build_tree(dir_path, rel_path='/'):
                 tree = {
@@ -2356,14 +2429,14 @@ except:
                     'type': 'directory',
                     'children': []
                 }
-                
+
                 try:
                     for item in os.listdir(dir_path):
                         item_path = os.path.join(dir_path, item)
                         item_rel_path = os.path.join(rel_path, item).replace('\\', '/')
                         if not item_rel_path.startswith('/'):
                             item_rel_path = '/' + item_rel_path
-                        
+
                         # 只包含文件夹
                         if os.path.isdir(item_path):
                             # 排除某些目录
@@ -2371,24 +2444,24 @@ except:
                                 tree['children'].append(build_tree(item_path, item_rel_path))
                 except Exception as e:
                     logger.error(f"读取目录 {dir_path} 失败: {str(e)}")
-                
+
                 # 按名称排序子文件夹
                 tree['children'].sort(key=lambda x: x['name'].lower())
-                
+
                 return tree
-            
+
             # 构建树结构
             tree = build_tree(root_dir)
-            
+
             return JSONResponse(content={'success': True, 'tree': tree})
-            
+
         except Exception as e:
             logger.error(f"获取文件夹树失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'获取文件夹树失败: {str(e)}'
             })
-    
+
     @app.get("/api/files/read")
     async def api_files_read(request: Request, path: str = None):
         """读取文件内容"""
@@ -2400,58 +2473,58 @@ except:
                 # 记录调试信息
                 logger.debug("文件读取API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             if not path:
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未提供文件路径'
                 })
-            
+
             # 处理相对路径
             if not path.startswith('/'):
                 path = '/' + path
-            
+
             # 获取完整路径
             root_dir = Path(current_dir).parent
             full_path = root_dir / path.lstrip('/')
-            
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法访问项目目录外的文件'
                 })
-            
+
             # 检查文件是否存在
             if not os.path.exists(full_path):
                 return JSONResponse(status_code=404, content={
-                    'success': False, 
+                    'success': False,
                     'message': '文件不存在'
                 })
-            
+
             # 检查是否是文件
             if not os.path.isfile(full_path):
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '路径不是一个文件'
                 })
-            
+
             # 读取文件内容
             with open(full_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
+
             return JSONResponse(content={'success': True, 'content': content})
-            
+
         except Exception as e:
             logger.error(f"读取文件失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'读取文件失败: {str(e)}'
             })
-    
+
     @app.post("/api/files/write")
     async def api_files_write(request: Request):
         """写入文件内容"""
@@ -2463,64 +2536,64 @@ except:
                 # 记录调试信息
                 logger.debug("文件写入API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 加强错误捕获和日志记录
             try:
                 data = await request.json()
             except Exception as e:
                 logger.error(f"解析请求体失败: {str(e)}")
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': f'无法解析请求体: {str(e)}'
                 })
-            
-            # 记录请求信息以便调试    
+
+            # 记录请求信息以便调试
             logger.debug(f"接收到写入文件请求: {data}")
-            
+
             path = data.get('path')
             content = data.get('content')
-            
+
             if not path:
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未提供文件路径'
                 })
-            
+
             # 处理相对路径
             if not path.startswith('/'):
                 path = '/' + path
-            
+
             # 获取完整路径
             root_dir = Path(current_dir).parent
             full_path = root_dir / path.lstrip('/')
-            
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法访问项目目录外的文件'
                 })
-            
+
             # 确保父目录存在
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            
+
             # 写入文件内容
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
+
             logger.info(f"成功写入文件: {path}")
             return JSONResponse(content={'success': True})
-            
+
         except Exception as e:
             logger.error(f"写入文件失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'写入文件失败: {str(e)}'
             })
-    
+
     @app.post("/api/files/create")
     async def api_files_create(request: Request):
         """创建文件或文件夹"""
@@ -2532,55 +2605,55 @@ except:
                 # 记录调试信息
                 logger.debug("文件创建API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 加强错误捕获和日志记录
             try:
                 data = await request.json()
             except Exception as e:
                 logger.error(f"解析请求体失败: {str(e)}")
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': f'无法解析请求体: {str(e)}'
                 })
-                
+
             # 记录请求信息以便调试
             logger.debug(f"接收到创建文件/文件夹请求: {data}")
-            
+
             path = data.get('path')
             content = data.get('content', '')
             type = data.get('type', 'file')
-            
+
             if not path:
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未提供路径'
                 })
-            
+
             # 处理相对路径
             if not path.startswith('/'):
                 path = '/' + path
-            
+
             # 获取完整路径
             root_dir = Path(current_dir).parent
             full_path = root_dir / path.lstrip('/')
-            
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法在项目目录外创建文件'
                 })
-            
+
             # 检查文件是否已存在
             if os.path.exists(full_path):
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '文件或文件夹已存在'
                 })
-            
+
             # 创建文件夹或文件
             if type == 'directory':
                 os.makedirs(full_path, exist_ok=True)
@@ -2588,21 +2661,21 @@ except:
             else:
                 # 确保父文件夹存在
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                
+
                 # 创建文件并写入内容
                 with open(full_path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 logger.info(f"成功创建文件: {path}")
-            
+
             return JSONResponse(content={'success': True})
-            
+
         except Exception as e:
             logger.error(f"创建文件或文件夹失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'创建文件或文件夹失败: {str(e)}'
             })
-    
+
     @app.post("/api/files/delete")
     async def api_files_delete(request: Request):
         """删除文件或文件夹"""
@@ -2614,53 +2687,53 @@ except:
                 # 记录调试信息
                 logger.debug("文件删除API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 加强错误捕获和日志记录
             try:
                 data = await request.json()
             except Exception as e:
                 logger.error(f"解析请求体失败: {str(e)}")
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': f'无法解析请求体: {str(e)}'
                 })
-            
+
             # 记录请求信息以便调试
             logger.debug(f"接收到删除文件/文件夹请求: {data}")
-            
+
             path = data.get('path')
-            
+
             if not path:
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未提供路径'
                 })
-            
+
             # 处理相对路径
             if not path.startswith('/'):
                 path = '/' + path
-            
+
             # 获取完整路径
             root_dir = Path(current_dir).parent
             full_path = root_dir / path.lstrip('/')
-            
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法删除项目目录外的文件'
                 })
-            
+
             # 检查文件或文件夹是否存在
             if not os.path.exists(full_path):
                 return JSONResponse(status_code=404, content={
-                    'success': False, 
+                    'success': False,
                     'message': '文件或文件夹不存在'
                 })
-            
+
             # 删除文件或文件夹
             if os.path.isdir(full_path):
                 shutil.rmtree(full_path)
@@ -2668,16 +2741,16 @@ except:
             else:
                 os.remove(full_path)
                 logger.info(f"成功删除文件: {path}")
-            
+
             return JSONResponse(content={'success': True})
-            
+
         except Exception as e:
             logger.error(f"删除文件或文件夹失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'删除文件或文件夹失败: {str(e)}'
             })
-    
+
     @app.post("/api/files/rename")
     async def api_files_rename(request: Request):
         """重命名文件或文件夹"""
@@ -2689,78 +2762,78 @@ except:
                 # 记录调试信息
                 logger.debug("文件重命名API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 加强错误捕获和日志记录
             try:
                 data = await request.json()
             except Exception as e:
                 logger.error(f"解析请求体失败: {str(e)}")
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': f'无法解析请求体: {str(e)}'
                 })
-                
+
             # 记录请求信息以便调试
             logger.debug(f"接收到重命名文件/文件夹请求: {data}")
-            
+
             old_path = data.get('old_path')
             new_path = data.get('new_path')
-            
+
             if not old_path or not new_path:
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未提供旧路径或新路径'
                 })
-            
+
             # 处理相对路径
             if not old_path.startswith('/'):
                 old_path = '/' + old_path
             if not new_path.startswith('/'):
                 new_path = '/' + new_path
-            
+
             # 获取完整路径
             root_dir = Path(current_dir).parent
             old_full_path = root_dir / old_path.lstrip('/')
             new_full_path = root_dir / new_path.lstrip('/')
-            
+
             # 安全检查：确保路径在项目目录内
-            if (not os.path.abspath(old_full_path).startswith(os.path.abspath(root_dir)) or 
+            if (not os.path.abspath(old_full_path).startswith(os.path.abspath(root_dir)) or
                 not os.path.abspath(new_full_path).startswith(os.path.abspath(root_dir))):
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法操作项目目录外的文件'
                 })
-            
+
             # 检查旧文件是否存在
             if not os.path.exists(old_full_path):
                 return JSONResponse(status_code=404, content={
-                    'success': False, 
+                    'success': False,
                     'message': '原文件或文件夹不存在'
                 })
-            
+
             # 检查新文件是否已存在
             if os.path.exists(new_full_path):
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '目标文件或文件夹已存在'
                 })
-                
+
             # 确保父文件夹存在
             os.makedirs(os.path.dirname(new_full_path), exist_ok=True)
-            
+
             # 重命名文件或文件夹
             shutil.move(old_full_path, new_full_path)
-            
+
             logger.info(f"成功将 {old_path} 重命名为 {new_path}")
             return JSONResponse(content={'success': True})
-            
+
         except Exception as e:
             logger.error(f"重命名文件或文件夹失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'重命名文件或文件夹失败: {str(e)}'
             })
 
@@ -2775,73 +2848,73 @@ except:
                 # 记录调试信息
                 logger.warning("文件上传API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 处理相对路径
             if not path.startswith('/'):
                 path = '/' + path
-            
+
             # 获取完整路径 - 从项目根目录开始
             root_dir = Path(current_dir).parent
             full_path = root_dir / path.lstrip('/')
-            
+
             logger.debug(f"用户 {username} 请求上传文件到路径: {path} -> {full_path}")
-            
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
                 logger.warning(f"尝试上传到不安全的路径: {full_path}")
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法上传到项目目录外的位置'
                 })
-            
+
             # 检查路径是否存在且是目录
             if not os.path.exists(full_path):
                 logger.warning(f"上传目标路径不存在: {full_path}")
                 return JSONResponse(status_code=404, content={
-                    'success': False, 
+                    'success': False,
                     'message': '上传目标路径不存在'
                 })
-            
+
             if not os.path.isdir(full_path):
                 logger.warning(f"上传目标路径不是目录: {full_path}")
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '上传目标路径不是一个目录'
                 })
-            
+
             # 获取表单数据中的上传类型
             form = await request.form()
             upload_type = "files"  # 默认为普通文件上传
-            
+
             # 检查是否是文件夹上传请求
             if "upload_type" in form:
                 upload_type = form["upload_type"]
                 logger.debug(f"上传类型: {upload_type}")
-            
+
             # 处理上传的文件
             uploaded_files = []
             errors = []
-            
+
             # 处理文件夹上传
             is_folder_upload = False
             for file in files:
                 if '/' in file.filename or '\\' in file.filename:
                     is_folder_upload = True
                     break
-            
+
             if is_folder_upload or upload_type == "folder":
                 logger.info(f"检测到文件夹上传请求 ({len(files)} 个文件)")
-                
+
                 # 按文件路径分组文件
                 folder_files = {}
                 for file in files:
                     # 处理文件路径，统一分隔符
                     file_path = file.filename.replace('\\', '/')
                     folder_files[file_path] = file
-                
+
                 # 创建必要的目录结构并保存文件
                 for file_path, file in folder_files.items():
                     try:
@@ -2849,20 +2922,20 @@ except:
                         if file_path.startswith('.') or file_path.endswith('~'):
                             logger.debug(f"跳过隐藏或临时文件: {file_path}")
                             continue
-                        
+
                         # 获取目录部分
                         dir_part = os.path.dirname(file_path)
-                        
+
                         # 构建目标路径
                         target_dir = full_path
                         if dir_part:
                             target_dir = os.path.join(full_path, dir_part)
                             # 确保目录存在
                             os.makedirs(target_dir, exist_ok=True)
-                        
+
                         # 构建完整的文件路径
                         target_file_path = os.path.join(full_path, file_path)
-                        
+
                         # 检查文件是否已存在
                         if os.path.exists(target_file_path):
                             logger.warning(f"文件已存在: {target_file_path}")
@@ -2871,13 +2944,13 @@ except:
                                 'error': '文件已存在'
                             })
                             continue
-                        
+
                         # 保存文件
                         logger.debug(f"保存上传的文件: {target_file_path}")
                         content = await file.read()
                         with open(target_file_path, "wb") as f:
                             f.write(content)
-                        
+
                         # 记录成功上传的文件
                         file_stats = os.stat(target_file_path)
                         uploaded_files.append({
@@ -2885,16 +2958,16 @@ except:
                             'size': file_stats.st_size,
                             'modified': file_stats.st_mtime
                         })
-                        
+
                         logger.info(f"成功上传文件: {file_path} 到 {target_file_path}")
-                        
+
                     except Exception as e:
                         logger.error(f"上传文件 {file_path} 失败: {str(e)}")
                         errors.append({
                             'filename': file_path,
                             'error': str(e)
                         })
-                
+
                 # 返回上传结果
                 return JSONResponse(content={
                     'success': True if uploaded_files else False,
@@ -2908,7 +2981,7 @@ except:
                     try:
                         # 构建目标文件路径
                         target_file_path = full_path / file.filename
-                        
+
                         # 检查文件是否已存在
                         if os.path.exists(target_file_path):
                             logger.warning(f"文件已存在: {target_file_path}")
@@ -2917,13 +2990,13 @@ except:
                                 'error': '文件已存在'
                             })
                             continue
-                        
+
                         # 保存文件
                         logger.debug(f"保存上传的文件: {target_file_path}")
                         content = await file.read()
                         with open(target_file_path, "wb") as f:
                             f.write(content)
-                        
+
                         # 记录成功上传的文件
                         file_stats = os.stat(target_file_path)
                         uploaded_files.append({
@@ -2931,9 +3004,9 @@ except:
                             'size': file_stats.st_size,
                             'modified': file_stats.st_mtime
                         })
-                        
+
                         logger.info(f"用户 {username} 成功上传文件: {file.filename} 到 {path}")
-                        
+
                         # 检查是否需要自动解压
                         if "auto_extract" in form and form["auto_extract"] == "true":
                             if file.filename.lower().endswith(('.zip', '.rar', '.7z', '.tar', '.gz', '.tar.gz')):
@@ -2949,14 +3022,14 @@ except:
                                     logger.info(f"自动解压成功: {file.filename}")
                                 else:
                                     logger.warning(f"自动解压失败: {file.filename}, {extract_result.get('message', '')}")
-                        
+
                     except Exception as e:
                         logger.error(f"上传文件 {file.filename} 失败: {str(e)}")
                         errors.append({
                             'filename': file.filename,
                             'error': str(e)
                         })
-                
+
                 # 返回上传结果
                 return JSONResponse(content={
                     'success': True if uploaded_files else False,
@@ -2964,14 +3037,14 @@ except:
                     'uploaded_files': uploaded_files,
                     'errors': errors
                 })
-            
+
         except Exception as e:
             logger.error(f"文件上传过程中发生错误: {str(e)}")
             return JSONResponse(
                 status_code=500,
                 content={"success": False, "message": f"服务器错误: {str(e)}"}
             )
-    
+
     # 添加文件下载API
     @app.get("/api/files/download")
     async def api_files_download(request: Request, path: str = None):
@@ -2984,67 +3057,67 @@ except:
                 # 记录调试信息
                 logger.debug("文件下载API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-        
+
             if not path:
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未提供文件路径'
                 })
-        
+
             # 处理相对路径
             if not path.startswith('/'):
                 path = '/' + path
-        
+
             # 获取完整路径
             root_dir = Path(current_dir).parent
             full_path = root_dir / path.lstrip('/')
-        
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_path).startswith(os.path.abspath(root_dir)):
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法访问项目目录外的文件'
                 })
-        
+
             # 检查文件是否存在
             if not os.path.exists(full_path):
                 return JSONResponse(status_code=404, content={
-                    'success': False, 
+                    'success': False,
                     'message': '文件不存在'
                 })
-        
+
             # 检查是否是文件
             if not os.path.isfile(full_path):
                 return JSONResponse(status_code=400, content={
-                    'success': False, 
+                    'success': False,
                     'message': '路径不是一个文件'
                 })
-        
+
             # 获取文件名
             filename = os.path.basename(full_path)
-            
+
             # 使用FileResponse发送文件
             logger.info(f"下载文件: {path}")
             return FileResponse(
-                path=full_path, 
+                path=full_path,
                 filename=filename,
                 media_type='application/octet-stream'
             )
-        
+
         except Exception as e:
             logger.error(f"下载文件失败: {str(e)}")
             return JSONResponse(status_code=500, content={
-                'success': False, 
+                'success': False,
                 'message': f'下载文件失败: {str(e)}'
             })
     # 添加压缩包解压API
     @app.post("/api/files/extract")
     async def api_files_extract(
-        request: Request, 
-        file_path: str = Form(...), 
+        request: Request,
+        file_path: str = Form(...),
         destination: str = Form(...),
         overwrite: bool = Form(False)
     ):
@@ -3055,56 +3128,56 @@ except:
             if not username:
                 logger.warning("文件解压API访问失败：未认证")
                 return JSONResponse(status_code=401, content={
-                    'success': False, 
+                    'success': False,
                     'message': '未认证，请先登录'
                 })
-            
+
             # 处理相对路径
             if not file_path.startswith('/'):
                 file_path = '/' + file_path
-                
+
             if not destination.startswith('/'):
                 destination = '/' + destination
-            
+
             # 获取完整路径 - 从项目根目录开始
             root_dir = Path(current_dir).parent
             full_file_path = root_dir / file_path.lstrip('/')
             full_destination = root_dir / destination.lstrip('/')
-            
+
             logger.debug(f"用户 {username} 请求解压文件: {file_path} -> {destination}")
-            
+
             # 安全检查：确保路径在项目目录内
             if not os.path.abspath(full_file_path).startswith(os.path.abspath(root_dir)):
                 logger.warning(f"尝试访问不安全的文件路径: {full_file_path}")
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法访问项目目录外的文件'
                 })
-                
+
             if not os.path.abspath(full_destination).startswith(os.path.abspath(root_dir)):
                 logger.warning(f"尝试解压到不安全的路径: {full_destination}")
                 return JSONResponse(status_code=403, content={
-                    'success': False, 
+                    'success': False,
                     'message': '无法解压到项目目录外的位置'
                 })
-            
+
             # 确保目标目录存在
             os.makedirs(full_destination, exist_ok=True)
-            
+
             # 调用解压函数
             return await extract_archive(
                 archive_path=str(full_file_path),
                 destination=str(full_destination),
                 overwrite=overwrite
             )
-            
+
         except Exception as e:
             logger.error(f"解压文件过程中发生错误: {str(e)}")
             return JSONResponse(
                 status_code=500,
                 content={"success": False, "message": f"服务器错误: {str(e)}"}
             )
-            
+
     # 解压缩文件的辅助函数
     async def extract_archive(archive_path: str, destination: str, overwrite: bool = False) -> dict:
         """解压缩文件
@@ -3118,18 +3191,18 @@ except:
             dict: 解压结果
         """
         logger.info(f"开始解压文件: {archive_path} -> {destination}")
-        
+
         # 确保目标路径存在
         os.makedirs(destination, exist_ok=True)
-        
+
         # 提取文件扩展名
         file_ext = os.path.splitext(archive_path.lower())[1]
         if file_ext == '.gz' and archive_path.lower().endswith('.tar.gz'):
             file_ext = '.tar.gz'
-        
+
         # 记录已解压的文件
         extracted_files = []
-        
+
         try:
             # 检查文件是否存在
             if not os.path.exists(archive_path):
@@ -3138,7 +3211,7 @@ except:
                     'success': False,
                     'message': '文件不存在'
                 }
-            
+
             # 根据不同压缩格式处理
             if file_ext in ['.zip', '.rar', '.7z']:
                 # 使用shutil解压zip文件
@@ -3147,7 +3220,7 @@ except:
                         with zipfile.ZipFile(archive_path, 'r') as zip_ref:
                             # 获取文件列表
                             file_list = zip_ref.namelist()
-                            
+
                             # 确保安全：检查是否包含绝对路径或父目录引用
                             for file_name in file_list:
                                 if file_name.startswith('/') or '..' in file_name:
@@ -3155,30 +3228,30 @@ except:
                                         'success': False,
                                         'message': f'压缩包含不安全的路径: {file_name}'
                                     }
-                            
+
                             # 执行解压
                             for file_name in file_list:
                                 target_path = os.path.join(destination, file_name)
-                                
+
                                 # 如果是目录，创建它
                                 if file_name.endswith('/') or file_name.endswith('\\'):
                                     os.makedirs(target_path, exist_ok=True)
                                     continue
-                                    
+
                                 # 确保父目录存在
                                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                                
+
                                 # 检查文件是否已存在且不覆盖
                                 if os.path.exists(target_path) and not overwrite:
                                     logger.warning(f"文件已存在且不覆盖: {target_path}")
                                     continue
-                                
+
                                 # 解压文件
                                 with zip_ref.open(file_name) as source, open(target_path, 'wb') as target:
                                     shutil.copyfileobj(source, target)
-                                
+
                                 extracted_files.append(file_name)
-                                
+
                     except zipfile.BadZipFile as e:
                         return {
                             'success': False,
@@ -3192,7 +3265,7 @@ except:
                             with rarfile.RarFile(archive_path) as rf:
                                 # 获取文件列表
                                 file_list = rf.namelist()
-                                
+
                                 # 确保安全：检查是否包含绝对路径或父目录引用
                                 for file_name in file_list:
                                     if file_name.startswith('/') or '..' in file_name:
@@ -3200,31 +3273,31 @@ except:
                                             'success': False,
                                             'message': f'压缩包含不安全的路径: {file_name}'
                                         }
-                                
+
                                 # 执行解压
                                 for file_name in file_list:
                                     # 构建目标路径
                                     target_path = os.path.join(destination, file_name)
-                                    
+
                                     # 如果是目录，创建它
                                     if file_name.endswith('/') or file_name.endswith('\\'):
                                         os.makedirs(target_path, exist_ok=True)
                                         continue
-                                        
+
                                     # 确保父目录存在
                                     os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                                    
+
                                     # 检查文件是否已存在且不覆盖
                                     if os.path.exists(target_path) and not overwrite:
                                         logger.warning(f"文件已存在且不覆盖: {target_path}")
                                         continue
-                                    
+
                                     # 提取文件
                                     with rf.open(file_name) as source, open(target_path, 'wb') as target:
                                         shutil.copyfileobj(source, target)
-                                    
+
                                     extracted_files.append(file_name)
-                                
+
                                 logger.info(f"成功解压RAR文件: {archive_path}，共 {len(extracted_files)} 个文件")
                                 return {
                                     'success': True,
@@ -3239,7 +3312,7 @@ except:
                                 z.extractall(path=destination)
                                 # 获取解压的文件列表
                                 extracted_files = z.getnames()
-                                
+
                                 logger.info(f"成功解压7Z文件: {archive_path}，共 {len(extracted_files)} 个文件")
                                 return {
                                     'success': True,
@@ -3251,13 +3324,13 @@ except:
                         logger.warning(f"缺少库 {str(e)}，尝试使用外部命令")
                     except Exception as e:
                         logger.error(f"使用Python库解压失败: {str(e)}")
-                        
+
                     # 如果Python库解压失败，尝试使用外部命令
                     try:
                         logger.info("尝试使用外部命令解压")
                         # 检查系统可用命令
                         commands_to_try = []
-                        
+
                         if file_ext == '.rar':
                             # 先尝试unrar，这是专门处理RAR的工具
                             commands_to_try.append({
@@ -3277,7 +3350,7 @@ except:
                                     'name': cmd_name,
                                     'cmd': [cmd_name, 'x', '-y' if overwrite else '-n', '-o' + destination, archive_path]
                                 })
-                        
+
                         # 尝试每个命令
                         command_success = False
                         for command in commands_to_try:
@@ -3285,11 +3358,11 @@ except:
                                 logger.info(f"尝试使用 {command['name']} 解压")
                                 # 先测试命令是否可用
                                 subprocess.run([command['name'], '--help'], capture_output=True, text=True, timeout=2)
-                                
+
                                 # 执行解压命令
                                 logger.info(f"执行解压命令: {' '.join(command['cmd'])}")
                                 result = subprocess.run(command['cmd'], capture_output=True, text=True, timeout=60)
-                                
+
                                 if result.returncode == 0:
                                     logger.info(f"命令 {command['name']} 执行成功")
                                     command_success = True
@@ -3302,7 +3375,7 @@ except:
                                             if len(parts) > 0:
                                                 file_info = parts[-1].strip()
                                                 extracted_files.append(file_info)
-                                
+
                                     if not extracted_files:
                                         # 如果没有从输出中解析到文件列表，扫描目录
                                         for root, dirs, files in os.walk(destination):
@@ -3310,7 +3383,7 @@ except:
                                                 file_path = os.path.join(root, file)
                                                 rel_path = os.path.relpath(file_path, destination)
                                                 extracted_files.append(rel_path)
-                                
+
                                     logger.info(f"解压成功，共解压 {len(extracted_files)} 个文件")
                                     return {
                                         'success': True,
@@ -3325,7 +3398,7 @@ except:
                                 logger.warning(f"命令 {command['name']} 不可用")
                             except subprocess.TimeoutExpired:
                                 logger.warning(f"命令 {command['name']} 执行超时")
-                        
+
                         # 检查所有命令是否都已尝试且全部失败
                         if not command_success:
                             logger.error(f"所有解压命令尝试均失败，无法解压 {archive_path}")
@@ -3333,7 +3406,7 @@ except:
                                 'success': False,
                                 'message': f'无法解压 {file_ext} 文件: 所有解压工具尝试均失败。请在服务器上安装unrar或7z工具。'
                             }
-                            
+
                     except Exception as e:
                         logger.error(f"使用外部命令解压过程中发生错误: {str(e)}")
                         return {
@@ -3344,14 +3417,14 @@ except:
                 # 使用tarfile模块解压tar文件
                 try:
                     import tarfile
-                    
+
                     # 确定打开模式
                     mode = 'r:gz' if file_ext in ['.gz', '.tar.gz', '.tgz'] else 'r'
-                    
+
                     with tarfile.open(archive_path, mode) as tar:
                         # 获取成员列表
                         members = tar.getmembers()
-                        
+
                         # 安全检查
                         for member in members:
                             if member.name.startswith('/') or '..' in member.name:
@@ -3359,22 +3432,22 @@ except:
                                     'success': False,
                                     'message': f'压缩包含不安全的路径: {member.name}'
                                 }
-                        
+
                         # 解压文件
                         for member in members:
                             target_path = os.path.join(destination, member.name)
-                            
+
                             # 跳过已存在且不覆盖的文件
                             if os.path.exists(target_path) and not overwrite:
                                 if member.isreg():  # 只记录常规文件
                                     logger.warning(f"文件已存在且不覆盖: {target_path}")
                                 continue
-                            
+
                             tar.extract(member, destination)
-                            
+
                             if member.isreg():  # 只记录常规文件
                                 extracted_files.append(member.name)
-                        
+
                 except tarfile.ReadError as e:
                     return {
                         'success': False,
@@ -3385,7 +3458,7 @@ except:
                     'success': False,
                     'message': f'不支持的压缩格式: {file_ext}'
                 }
-            
+
             # 检查是否有任何文件被成功解压
             if not extracted_files:
                 logger.warning(f"没有文件被解压: {archive_path}")
@@ -3393,17 +3466,17 @@ except:
                     'success': False,
                     'message': '解压过程完成，但没有文件被解压。请检查压缩文件是否有效或安装必要的解压工具。'
                 }
-            
+
             # 记录解压完成
             logger.info(f"成功解压文件: {archive_path}，共 {len(extracted_files)} 个文件")
-            
+
             return {
                 'success': True,
                 'message': f'成功解压 {len(extracted_files)} 个文件',
                 'extracted_files': extracted_files[:100],  # 限制返回的文件数量
                 'total_files': len(extracted_files)
             }
-            
+
         except Exception as e:
             logger.error(f"解压文件失败: {str(e)}")
             return {
@@ -3431,7 +3504,7 @@ except:
             if not username:
                 # 未认证，重定向到登录页面
                 return RedirectResponse(url="/login?next=/files", status_code=303)
-                
+
             logger.debug(f"用户 {username} 访问文件管理页面")
             # 认证成功，显示文件管理页面
             return templates.TemplateResponse("files.html", {
@@ -3450,7 +3523,7 @@ except:
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             # 可能的日志文件位置
             log_paths = [
@@ -3466,14 +3539,14 @@ except:
                 os.path.join(current_dir, "../logs/XYBot_*.log"),
                 os.path.join(current_dir, "./logs/latest.log"),
             ]
-            
+
             # 查找存在的日志文件
             found_logs = []
             for path_pattern in log_paths:
                 for log_file in glob.glob(path_pattern):
                     if os.path.exists(log_file) and os.path.isfile(log_file):
                         found_logs.append(log_file)
-            
+
             # 如果没找到日志文件
             if not found_logs:
                 logger.warning("未找到任何日志文件")
@@ -3483,60 +3556,60 @@ except:
                     "log_files": [],
                     "message": "未找到任何日志文件"
                 }
-            
+
             # 选择最新的日志文件
             latest_log = max(found_logs, key=os.path.getmtime)
             logger.info(f"读取日志文件: {latest_log}")
-            
+
             # 读取日志文件并按行返回最新的limit行
             log_entries = []
             log_files = [os.path.basename(log) for log in found_logs]
-            
+
             with open(latest_log, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
                 # 获取最后的limit行
                 lines = lines[-limit:] if len(lines) > limit else lines
-                
+
                 for line in lines:
                     line = line.strip()
                     if not line:
                         continue
-                    
+
                     # 解析日志行
                     log_entry = {"raw": line}
-                    
+
                     # 尝试解析日志级别
                     level_match = re.search(r'\|\s*(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|', line)
                     if level_match:
                         log_entry["level"] = level_match.group(1).lower()
                     else:
                         log_entry["level"] = "info"  # 默认级别
-                    
+
                     # 如果指定了级别过滤，且不匹配，则跳过
                     if log_level and log_entry["level"] != log_level.lower():
                         continue
-                    
+
                     # 尝试解析时间戳
                     time_match = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', line)
                     if time_match:
                         log_entry["timestamp"] = time_match.group(1)
-                    
+
                     # 尝试解析消息内容
                     content_match = re.search(r'\|\s*(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|\s*(.*)', line)
                     if content_match:
                         log_entry["message"] = content_match.group(2).strip()
                     else:
                         log_entry["message"] = line
-                    
+
                     log_entries.append(log_entry)
-            
+
             return {
                 "success": True,
                 "logs": log_entries,
                 "log_files": log_files,
                 "current_log": os.path.basename(latest_log)
             }
-            
+
         except Exception as e:
             logger.error(f"获取系统日志时出错: {str(e)}")
             logger.error(traceback.format_exc())
@@ -3544,7 +3617,7 @@ except:
                 status_code=500,
                 content={"success": False, "error": f"获取系统日志失败: {str(e)}"}
             )
-            
+
     # API: 联系人管理 (需要认证)
     @app.get("/api/contacts", response_class=JSONResponse)
     async def api_contacts(request: Request, refresh: bool = False):
@@ -3556,12 +3629,12 @@ except:
                 "success": False,
                 "error": "未授权访问"
             })
-        
+
         # 缓存文件路径
         cache_dir = os.path.join("data", "cache")
         os.makedirs(cache_dir, exist_ok=True)
         contacts_cache_file = os.path.join(cache_dir, "contacts_cache.json")
-        
+
         # 如果不是强制刷新，尝试从缓存读取
         if not refresh and os.path.exists(contacts_cache_file):
             try:
@@ -3569,7 +3642,7 @@ except:
                 cache_time = os.path.getmtime(contacts_cache_file)
                 current_time = time.time()
                 cache_age = current_time - cache_time
-                
+
                 # 如果缓存不超过24小时，直接返回缓存数据
                 if cache_age < 24 * 3600:  # 24小时 = 86400秒
                     logger.info(f"从缓存加载联系人列表（缓存时间：{datetime.fromtimestamp(cache_time).strftime('%Y-%m-%d %H:%M:%S')}）")
@@ -3580,9 +3653,9 @@ except:
                     logger.info("联系人缓存已过期（超过24小时），将重新获取")
             except Exception as e:
                 logger.error(f"读取联系人缓存失败: {e}")
-        
+
         logger.info("请求联系人列表API")
-        
+
         # 使用固定wxid调用微信API获取联系人列表
         try:
             # 确保bot_instance可用
@@ -3593,7 +3666,7 @@ except:
                     "error": "机器人实例未初始化，请确保机器人已启动",
                     "data": []
                 })
-            
+
             # 检查get_contract_list方法
             if not hasattr(bot_instance.bot, 'get_contract_list'):
                 logger.error("bot.get_contract_list方法不存在")
@@ -3602,16 +3675,16 @@ except:
                     "error": "微信API不支持获取联系人列表",
                     "data": []
                 })
-            
+
             # 获取API请求的URL
             if hasattr(bot_instance.bot, 'ip') and hasattr(bot_instance.bot, 'port'):
                 api_url = f"http://{bot_instance.bot.ip}:{bot_instance.bot.port}/GetContractList"
                 logger.info(f"请求URL: {api_url}")
-            
+
             # 从bot状态中获取微信ID
             bot_status = get_bot_status()
             wxid = None
-            
+
             # 检查bot_status中是否包含wxid
             if bot_status and "wxid" in bot_status:
                 wxid = bot_status["wxid"]
@@ -3625,7 +3698,7 @@ except:
                     # 回退到原来的固定wxid
                     wxid = "wxid_uz9za1pqr3ea22"
                     logger.warning(f"无法获取动态wxid，使用固定wxid: {wxid}")
-            
+
             request_params = {
                 "Wxid": wxid,
                 "CurrentWxcontactSeq": 0,
@@ -3633,15 +3706,15 @@ except:
             }
             logger.info(f"请求方式: POST")
             logger.info(f"请求参数: {request_params}")
-            
+
             # 保存原始wxid
             original_wxid = None
             if hasattr(bot_instance.bot, 'wxid'):
                 original_wxid = bot_instance.bot.wxid
-            
+
             # 设置wxid并调用API
             bot_instance.bot.wxid = wxid
-            
+
             # 调用API获取联系人
             import asyncio
             if asyncio.get_event_loop().is_running():
@@ -3653,14 +3726,14 @@ except:
                     contacts_data = loop.run_until_complete(bot_instance.bot.get_contract_list(wx_seq=0, chatroom_seq=0))
                 finally:
                     loop.close()
-            
+
             # 恢复原始wxid
             if original_wxid is not None:
                 bot_instance.bot.wxid = original_wxid
-            
+
             # 打印返回数据的完整结构，帮助调试
             logger.debug(f"API返回数据结构: {contacts_data}")
-            
+
             # 检查返回数据
             if not contacts_data or not isinstance(contacts_data, dict):
                 logger.error(f"API返回数据无效: {contacts_data}")
@@ -3669,7 +3742,7 @@ except:
                     "error": "获取联系人列表失败，返回数据无效",
                     "data": []
                 })
-            
+
             # 检查ContactUsernameList字段 - 直接在顶层
             if 'ContactUsernameList' not in contacts_data or not isinstance(contacts_data['ContactUsernameList'], list):
                 logger.error(f"返回数据中没有ContactUsernameList字段或格式不正确: {contacts_data}")
@@ -3678,28 +3751,28 @@ except:
                     "error": "获取联系人列表失败，返回数据格式不正确",
                     "data": []
                 })
-            
+
             # 提取联系人列表
             contact_usernames = contacts_data['ContactUsernameList']
             logger.info(f"找到{len(contact_usernames)}个联系人ID")
-            
+
             # 构建联系人对象
             contact_list = []
-            
+
             # 检查是否支持获取联系人详情
             has_contract_detail_method = hasattr(bot_instance.bot, 'get_contract_detail')
-            
+
             if has_contract_detail_method:
                 logger.info("使用get_contract_detail方法获取联系人详细信息")
-                
+
                 # 分批获取联系人详情 (每批最多20个)
                 batch_size = 20
                 all_contact_details = {}
-                
+
                 for i in range(0, len(contact_usernames), batch_size):
                     batch = contact_usernames[i:i+batch_size]
                     logger.debug(f"获取联系人详情批次 {i//batch_size+1}/{(len(contact_usernames)+batch_size-1)//batch_size}: {batch}")
-                    
+
                     try:
                         # 调用API获取联系人详情
                         if asyncio.get_event_loop().is_running():
@@ -3711,26 +3784,26 @@ except:
                                 contact_details = loop.run_until_complete(bot_instance.bot.get_contract_detail(batch))
                             finally:
                                 loop.close()
-                        
+
                         # 改为INFO级别确保输出
                         logger.info(f"批次{i//batch_size+1}获取到联系人详情: {len(contact_details)}个")
-                        
+
                         # 强制打印每个批次的第一个联系人信息作为样本
                         if contact_details and len(contact_details) > 0:
                             logger.info(f"联系人详情样本结构: {json.dumps(contact_details[0], ensure_ascii=False)}")
-                        
+
                         # 显式记录关键字段是否存在
                         if contact_details and len(contact_details) > 0:
                             first_contact = contact_details[0]
                             logger.info(f"联系人[{first_contact.get('Username', 'unknown')}]有以下字段: {sorted(first_contact.keys())}")
-                            
+
                             # 检查并记录关键字段
                             for field in ['Username', 'NickName', 'Remark', 'SmallHeadImgUrl', 'BigHeadImgUrl']:
                                 if field in first_contact:
                                     logger.info(f"字段[{field}]存在，值为: {first_contact[field]}")
                                 else:
                                     logger.info(f"字段[{field}]不存在")
-                        
+
                         # 将联系人详情与wxid关联
                         for contact_detail in contact_details:
                             # 修正UserName字段名大小写问题
@@ -3740,16 +3813,16 @@ except:
                                     wxid = contact_detail['UserName']['string']
                                 else:
                                     wxid = str(contact_detail['UserName'])
-                                
+
                                 all_contact_details[wxid] = contact_detail
                                 if wxid in batch[:3]:  # 只记录前3个，避免日志过多
-                                    logger.info(f"联系人[{wxid}]头像信息: " + 
+                                    logger.info(f"联系人[{wxid}]头像信息: " +
                                               f"SmallHeadImgUrl={contact_detail.get('SmallHeadImgUrl', 'None')}, " +
                                               f"BigHeadImgUrl={contact_detail.get('BigHeadImgUrl', 'None')}")
                     except Exception as e:
                         logger.error(f"获取联系人详情批次失败 ({i}~{i+batch_size-1}): {e}")
                         logger.error(traceback.format_exc())
-                
+
                 # 根据获取的详细信息创建联系人对象
                 for username in contact_usernames:
                     # 根据wxid格式确定联系人类型
@@ -3758,38 +3831,38 @@ except:
                         contact_type = "group"
                     elif username.startswith("gh_"):
                         contact_type = "official"
-                    
+
                     # 获取联系人详情
                     contact_detail = all_contact_details.get(username, {})
-                    
+
                     # 提取字段
                     nickname = ""
                     remark = ""
                     avatar = "/static/img/favicon.ico"
-                    
+
                     # 提取昵称 - 处理嵌套结构
                     if contact_detail and 'NickName' in contact_detail:
                         if isinstance(contact_detail['NickName'], dict) and 'string' in contact_detail['NickName']:
                             nickname = contact_detail['NickName']['string'] or username
                         else:
                             nickname = str(contact_detail['NickName']) or username
-                    
+
                     # 提取备注 - 处理嵌套结构
                     if contact_detail and 'Remark' in contact_detail:
                         if isinstance(contact_detail['Remark'], dict) and 'string' in contact_detail['Remark']:
                             remark = contact_detail['Remark']['string'] or ""
                         elif isinstance(contact_detail['Remark'], str):
                             remark = contact_detail['Remark']
-                    
+
                     # 提取头像URL - 直接使用URL，无需处理嵌套结构
                     if contact_detail and 'SmallHeadImgUrl' in contact_detail and contact_detail['SmallHeadImgUrl']:
                         avatar = contact_detail['SmallHeadImgUrl']
                     elif contact_detail and 'BigHeadImgUrl' in contact_detail and contact_detail['BigHeadImgUrl']:
                         avatar = contact_detail['BigHeadImgUrl']
-                    
+
                     # 确定显示名称（优先使用备注，其次昵称，最后是wxid）
                     display_name = remark or nickname or username
-                    
+
                     # 创建联系人对象
                     contact = {
                         "wxid": username,
@@ -3807,11 +3880,11 @@ except:
                 has_nickname_method = hasattr(bot_instance.bot, 'get_nickname')
                 if has_nickname_method:
                     logger.info("使用get_nickname方法获取联系人昵称")
-                    
+
                     # 分批获取联系人昵称 (每批最多20个)
                     batch_size = 20
                     all_nicknames = {}
-                    
+
                     # 分批处理联系人
                     for i in range(0, len(contact_usernames), batch_size):
                         batch = contact_usernames[i:i+batch_size]
@@ -3826,7 +3899,7 @@ except:
                                     nicknames = loop.run_until_complete(bot_instance.bot.get_nickname(batch))
                                 finally:
                                     loop.close()
-                            
+
                             # 将昵称与wxid关联
                             for j, wxid in enumerate(batch):
                                 if j < len(nicknames) and nicknames[j]:
@@ -3841,7 +3914,7 @@ except:
                 else:
                     logger.warning("bot既没有get_contract_detail也没有get_nickname方法，将使用wxid作为昵称")
                     all_nicknames = {username: username for username in contact_usernames}
-                
+
                 # 根据获取的昵称创建联系人对象
                 for username in contact_usernames:
                     # 根据wxid格式确定联系人类型
@@ -3850,11 +3923,11 @@ except:
                         contact_type = "group"
                     elif username.startswith("gh_"):
                         contact_type = "official"
-                    
+
                     # 获取昵称（如果有）
                     nickname = all_nicknames.get(username, username)
                     display_name = nickname if nickname else username
-                    
+
                     # 创建联系人对象
                     contact = {
                         "wxid": username,
@@ -3867,14 +3940,14 @@ except:
                         "starred": False
                     }
                     contact_list.append(contact)
-            
+
             # 创建响应数据
             response_data = {
                 "success": True,
                 "data": contact_list,
                 "timestamp": int(time.time())
             }
-            
+
             # 将结果缓存到文件
             try:
                 with open(contacts_cache_file, 'w', encoding='utf-8') as f:
@@ -3882,15 +3955,15 @@ except:
                 logger.info(f"联系人列表已缓存至 {contacts_cache_file}")
             except Exception as e:
                 logger.error(f"缓存联系人列表失败: {e}")
-            
+
             # 返回联系人列表
             logger.success(f"成功获取到{len(contact_list)}个联系人")
             return JSONResponse(content=response_data)
-        
+
         except Exception as e:
             logger.error(f"获取联系人列表失败: {e}")
             logger.error(traceback.format_exc())
-            
+
             # 返回空列表和错误信息
             return JSONResponse(content={
                 "success": False,
@@ -3909,12 +3982,12 @@ except:
         # 获取客户端IP
         client_ip = request.client.host
         current_time = time.time()
-        
+
         # 检查请求频率
         if client_ip in request_counters:
             # 清除10秒前的请求记录
             request_timestamps[client_ip] = [t for t in request_timestamps[client_ip] if current_time - t < 10]
-            
+
             # 检查10秒内的请求次数
             if len(request_timestamps[client_ip]) >= REQUEST_RATE_LIMIT:
                 logger.warning(f"客户端 {client_ip} 请求频率过高，已限制")
@@ -3928,11 +4001,11 @@ except:
         else:
             request_counters[client_ip] = 0
             request_timestamps[client_ip] = []
-        
+
         # 更新请求计数和时间戳
         request_counters[client_ip] += 1
         request_timestamps[client_ip].append(current_time)
-        
+
         logger.info(f"客户端 {client_ip} 联系人详情请求计数: {request_counters[client_ip]}")
 
         try:
@@ -3946,7 +4019,7 @@ except:
                         'error': '用户未登录'
                     }
                 )
-                
+
             # 获取请求的联系人ID列表
             data = await request.json()
             if not data or 'wxids' not in data:
@@ -3968,19 +4041,19 @@ except:
                         'error': 'wxids必须是非空列表'
                     }
                 )
-                
+
             # 限制每次请求最多20个
             if len(wxids) > 20:
                 logger.warning(f"请求的wxids数量超过限制: {len(wxids)}")
                 wxids = wxids[:20]
-                
+
             logger.info(f"正在获取 {len(wxids)} 个联系人的详情")
-            
+
             # 尝试首先从缓存中获取联系人信息
             cache_dir = os.path.join("data", "cache")
             os.makedirs(cache_dir, exist_ok=True)
             contacts_cache_file = os.path.join(cache_dir, "contacts_cache.json")
-            
+
             # 从缓存中加载现有联系人数据
             cached_contacts = {}
             if os.path.exists(contacts_cache_file):
@@ -3994,7 +4067,7 @@ except:
                             logger.info(f"从缓存加载了 {len(cached_contacts)} 个联系人")
                 except Exception as e:
                     logger.error(f"读取联系人缓存失败: {str(e)}")
-            
+
             # 获取机器人实例
             # 从会话数据中获取wxid
             session_cookie = request.cookies.get("session")
@@ -4006,7 +4079,7 @@ except:
                     wxid_from_session = session_data.get("wxid")
                 except Exception as e:
                     logger.error(f"解析会话数据失败: {str(e)}")
-            
+
             # 获取机器人实例
             wxapi = get_bot(wxid_from_session)
             if not wxapi:
@@ -4029,10 +4102,10 @@ except:
                         else:
                             missing_wxids.append(wxid)
                             results.append({'wxid': wxid, 'nickname': wxid, 'error': '详情未找到', 'from_cache': True})
-                    
+
                     if missing_wxids:
                         logger.warning(f"以下 {len(missing_wxids)} 个wxid在缓存中未找到: {missing_wxids}")
-                    
+
                     logger.info(f"从缓存返回 {len(results)} 个联系人详情")
                     return JSONResponse(
                         content={
@@ -4048,13 +4121,13 @@ except:
                             'error': '无法获取微信机器人实例，且没有缓存数据'
                         }
                     )
-            
+
             # 获取联系人详情
             results = []
             success_count = 0
             cached_count = 0
             api_count = 0
-            
+
             for wxid in wxids:
                 logger.debug(f"正在获取联系人详情: {wxid}")
                 # 首先检查缓存
@@ -4072,12 +4145,12 @@ except:
                     success_count += 1
                     cached_count += 1
                     continue
-                
+
                 # 缓存中没有，尝试从API获取
                 try:
                     # 调用API获取联系人详情
                     detail = await wxapi.get_contract_detail(wxid)
-                    
+
                     # 处理返回结果
                     if detail:
                         # 检查detail是否为列表
@@ -4180,7 +4253,7 @@ except:
                         cached_count += 1
                     else:
                         results.append({'wxid': wxid, 'nickname': wxid, 'error': str(e)})
-            
+
             logger.info(f"成功获取 {success_count}/{len(wxids)} 个联系人详情 (缓存: {cached_count}, API: {api_count})")
             return JSONResponse(
                 content={
@@ -4188,7 +4261,7 @@ except:
                     'data': results
                 }
             )
-            
+
         except Exception as e:
             logger.error(f"处理联系人详情批量请求时出错: {str(e)}")
             import traceback
@@ -4229,35 +4302,35 @@ except:
                 status_code=401,
                 content={"success": False, "error": "未登录，请先登录"}
             )
-            
+
         try:
             # 解析请求数据
             data = await request.json()
             wxid = data.get("wxid")
-            
+
             if not wxid:
                 return JSONResponse(
                     content={"success": False, "error": "缺少群聊ID(wxid)参数"}
                 )
-            
+
             # 只有群才有公告
             if not wxid.endswith("@chatroom"):
                 return JSONResponse(
                     content={"success": False, "error": "无效的群ID，只有群聊才有公告"}
                 )
-            
+
             # 由于微信API限制，公告功能已禁用
             logger.info(f"群公告功能已被禁用，返回空公告")
             return JSONResponse(
                 content={"success": True, "announcement": ""}
             )
-            
+
         except Exception as e:
             logger.error(f"获取群公告时出错: {str(e)}")
             return JSONResponse(
                 content={"success": False, "error": f"服务器错误: {str(e)}"}
             )
-    
+
     # 添加发送消息的API端点
     @app.post("/api/send_message", response_class=JSONResponse)
     async def api_send_message(request: Request):
@@ -4269,42 +4342,42 @@ except:
                 status_code=401,
                 content={"success": False, "error": "未登录，请先登录"}
             )
-            
+
         try:
             # 解析请求数据
             data = await request.json()
             to_wxid = data.get("to_wxid")
             content = data.get("content")
             at_users = data.get("at", "")
-            
+
             if not to_wxid or not content:
                 return JSONResponse(
                     content={"success": False, "error": "缺少必要参数，需要to_wxid和content"}
                 )
-            
+
             # 确保机器人实例可用
             if not bot_instance or not hasattr(bot_instance, 'bot'):
                 logger.error("bot_instance未设置或不可用")
                 return JSONResponse(
                     content={"success": False, "error": "机器人实例未初始化，请确保机器人已启动"}
                 )
-            
+
             # 检查方法是否存在
             if not hasattr(bot_instance.bot, 'send_text_message'):
                 logger.error("bot.send_text_message方法不存在")
                 return JSONResponse(
                     content={"success": False, "error": "微信API不支持发送文本消息"}
                 )
-            
+
             # 发送消息
             try:
                 logger.info(f"正在向 {to_wxid} 发送消息: {content[:20]}...")
                 result = await bot_instance.bot.send_text_message(to_wxid, content, at_users)
                 logger.success(f"消息发送成功，结果: {result}")
-                
+
                 return JSONResponse(
                     content={
-                        "success": True, 
+                        "success": True,
                         "message": "消息发送成功",
                         "data": {
                             "client_msg_id": result[0],
@@ -4318,7 +4391,7 @@ except:
                 return JSONResponse(
                     content={"success": False, "error": f"发送消息失败: {str(e)}"}
                 )
-                
+
         except Exception as e:
             logger.error(f"处理发送消息请求时出错: {str(e)}")
             return JSONResponse(
@@ -4336,7 +4409,7 @@ except:
                 status_code=401,
                 content={"success": False, "error": "未登录，请先登录"}
             )
-        
+
         # 返回功能已禁用的消息
         return JSONResponse(
             content={
@@ -4356,25 +4429,25 @@ async def simple_upload(request: Request, files: List[UploadFile] = File(...)):
         if not username:
             logger.warning("简化上传API访问失败：未认证")
             return JSONResponse(status_code=401, content={
-                'success': False, 
+                'success': False,
                 'message': '未认证，请先登录'
             })
-        
+
         # 使用固定的上传目录 - 项目根目录下的files文件夹
         upload_dir = os.path.join(Path(current_dir).parent, "files")
         os.makedirs(upload_dir, exist_ok=True)
-        
+
         logger.debug(f"用户 {username} 请求上传文件到路径: {upload_dir}")
-        
+
         # 处理上传的文件
         uploaded_files = []
         errors = []
-        
+
         for file in files:
             try:
                 # 构建目标文件路径
                 target_file_path = os.path.join(upload_dir, file.filename)
-                
+
                 # 检查文件是否已存在
                 if os.path.exists(target_file_path):
                     logger.warning(f"文件已存在: {target_file_path}")
@@ -4384,13 +4457,13 @@ async def simple_upload(request: Request, files: List[UploadFile] = File(...)):
                     new_filename = f"{filename_parts[0]}_{timestamp}{filename_parts[1]}"
                     target_file_path = os.path.join(upload_dir, new_filename)
                     logger.debug(f"自动重命名为: {new_filename}")
-                
+
                 # 保存文件
                 logger.debug(f"保存上传的文件: {target_file_path}")
                 content = await file.read()
                 with open(target_file_path, "wb") as f:
                     f.write(content)
-                
+
                 # 记录成功上传的文件
                 file_stats = os.stat(target_file_path)
                 uploaded_files.append({
@@ -4398,16 +4471,16 @@ async def simple_upload(request: Request, files: List[UploadFile] = File(...)):
                     'size': file_stats.st_size,
                     'modified': file_stats.st_mtime
                 })
-                
+
                 logger.info(f"用户 {username} 成功上传文件: {os.path.basename(target_file_path)}")
-                
+
             except Exception as e:
                 logger.error(f"上传文件 {file.filename} 失败: {str(e)}")
                 errors.append({
                     'filename': file.filename,
                     'error': str(e)
                 })
-        
+
         # 返回上传结果
         return JSONResponse(content={
             'success': True if uploaded_files else False,
@@ -4415,7 +4488,7 @@ async def simple_upload(request: Request, files: List[UploadFile] = File(...)):
             'uploaded_files': uploaded_files,
             'errors': errors
         })
-        
+
     except Exception as e:
         logger.error(f"简化上传API处理文件时出错: {str(e)}")
         return JSONResponse(
@@ -4433,7 +4506,7 @@ async def api_upload(request: Request, files: List[UploadFile] = File(...)):
 def start_server(host_arg=None, port_arg=None, username_arg=None, password_arg=None, debug_arg=None, bot=None):
     """启动管理后台服务器"""
     global SERVER_RUNNING, SERVER_THREAD, bot_instance, config
-    
+
     # 检查服务器是否已经在运行
     if SERVER_RUNNING and SERVER_THREAD and SERVER_THREAD.is_alive():
         logger.warning("管理后台服务器已经在运行中，跳过重复启动")
@@ -4441,17 +4514,17 @@ def start_server(host_arg=None, port_arg=None, username_arg=None, password_arg=N
         if bot is not None:
             set_bot_instance(bot)
         return SERVER_THREAD
-    
-    
+
+
     # 设置bot实例
     if bot is not None:
         bot_instance = bot
         # 调用set_bot_instance函数
         set_bot_instance(bot)
-    
+
     # 加载配置
     load_config()
-    
+
     # 更新配置
     if host_arg is not None:
         config["host"] = host_arg
@@ -4463,10 +4536,10 @@ def start_server(host_arg=None, port_arg=None, username_arg=None, password_arg=N
         config["password"] = password_arg
     if debug_arg is not None:
         config["debug"] = debug_arg
-    
+
     # 初始化应用
     init_app()
-    
+
     # 在新线程中启动服务器
     def run_server():
         try:
@@ -4482,16 +4555,16 @@ def start_server(host_arg=None, port_arg=None, username_arg=None, password_arg=N
             logger.error(f"启动服务器时出错: {str(e)}")
             global SERVER_RUNNING
             SERVER_RUNNING = False
-    
+
     # 创建并启动线程
     import threading
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
-    
+
     # 更新全局状态
     SERVER_RUNNING = True
     SERVER_THREAD = server_thread
-    
+
     # 创建状态文件
     try:
         status_path = os.path.join(current_dir, "admin_server_status.txt")
@@ -4501,18 +4574,18 @@ def start_server(host_arg=None, port_arg=None, username_arg=None, password_arg=N
             f.write(f"状态: 运行中\n")
     except Exception as e:
         logger.error(f"创建状态文件失败: {str(e)}")
-    
+
     return server_thread
 
 # 获取机器人实例
 def get_bot(wxid):
     """根据wxid获取机器人实例"""
     logger.info(f"尝试获取机器人实例, 请求wxid: {wxid}")
-    
+
     if not bot_instance:
         logger.error("bot_instance不存在，机器人可能未初始化")
         return None
-    
+
     if not wxid:
         # 尝试从系统状态获取wxid
         bot_status = get_bot_status()
@@ -4533,13 +4606,13 @@ def get_bot(wxid):
             else:
                 logger.info("成功从默认实例获取bot属性")
             return bot
-    
+
     # 如果提供了wxid或从系统状态获取到了wxid
     try:
         # 尝试获取bot属性
         logger.debug(f"尝试从bot_instance获取bot属性")
         bot = getattr(bot_instance, 'bot', None)
-        
+
         if not bot:
             logger.warning("bot_instance没有bot属性，尝试获取wxapi属性")
             # 尝试获取wxapi属性
@@ -4551,20 +4624,20 @@ def get_bot(wxid):
                 logger.info("成功获取wxapi属性")
         else:
             logger.info("成功获取bot属性")
-        
+
         # 检查获取到的bot实例是否有效
         if hasattr(bot, 'wxid'):
             logger.info(f"获取到的bot实例wxid: {bot.wxid}")
         else:
             logger.warning("获取到的bot实例没有wxid属性")
-        
+
         return bot
     except Exception as e:
         logger.exception(f"获取机器人实例时发生异常: {str(e)}")
         return None
 
     # 插件市场相关API ===========================================
-    
+
     # API: 获取插件市场列表
     @app.get("/api/plugin_market", response_class=JSONResponse)
     async def api_get_plugin_market(request: Request):
@@ -4572,7 +4645,7 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             # 从远程服务器获取插件市场数据
             async with aiohttp.ClientSession() as session:
@@ -4599,7 +4672,7 @@ def get_bot(wxid):
         except Exception as e:
             logger.error(f"获取插件市场失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # API: 提交插件到市场
     @app.post("/api/plugin_market/submit", response_class=JSONResponse)
     async def api_submit_plugin(
@@ -4617,7 +4690,7 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             # 准备提交数据
             plugin_data = {
@@ -4632,14 +4705,14 @@ def get_bot(wxid):
                 "submitted_at": datetime.now().isoformat(),  # 记录提交时间
                 "status": "pending"  # 状态：pending, approved, rejected
             }
-            
+
             # 处理图标上传
             if icon and icon.filename:
                 # 读取图标内容并转为base64
                 icon_content = await icon.read()
                 base64_icon = base64.b64encode(icon_content).decode('utf-8')
                 plugin_data["icon_base64"] = base64_icon
-            
+
             # 发送到远程服务器
             async with aiohttp.ClientSession() as session:
                 try:
@@ -4657,24 +4730,24 @@ def get_bot(wxid):
                             return {"success": False, "error": f"远程服务器返回错误: {response.status} - {error_text}"}
                 except aiohttp.ClientError as e:
                     logger.error(f"提交插件到远程服务器失败: {e}")
-                    
+
                     # 保存到本地临时文件，稍后重试
                     temp_dir = os.path.join(current_dir, 'pending_plugins')
                     os.makedirs(temp_dir, exist_ok=True)
                     temp_file = os.path.join(temp_dir, f"{int(time.time())}_{name.replace(' ', '_')}.json")
-                    
+
                     with open(temp_file, 'w', encoding='utf-8') as f:
                         json.dump(plugin_data, f, ensure_ascii=False, indent=2)
-                    
+
                     return {
-                        "success": True, 
+                        "success": True,
                         "message": "由于网络问题，插件已暂存在本地，将在网络恢复后自动提交",
                         "local_only": True
                     }
         except Exception as e:
             logger.error(f"提交插件失败: {str(e)}\n{traceback.format_exc()}")
             return {"success": False, "error": str(e)}
-    
+
     # API: 安装插件
     @app.post("/api/plugin_market/install", response_class=JSONResponse)
     async def api_install_plugin(request: Request):
@@ -4682,17 +4755,17 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-            
+
         try:
             # 获取请求数据
             data = await request.json()
             plugin_data = data.get('plugin_data', {})
             plugin_name = plugin_data.get('name')
             github_url = plugin_data.get('github_url')
-            
+
             if not plugin_name or not github_url:
                 return {"success": False, "error": "缺少必要参数"}
-            
+
             # 创建临时目录
             import tempfile
             import shutil
@@ -4702,23 +4775,23 @@ def get_bot(wxid):
             import sys
             import subprocess
             from pathlib import Path
-            
+
             temp_dir = tempfile.mkdtemp()
             plugin_dir = os.path.join("plugins", plugin_name)
-            
+
             # 预先初始化config_backup变量，防止未定义错误
             config_backup = None
             config_path = os.path.join(plugin_dir, "config.toml")
-            
+
             try:
                 # 构建 ZIP 下载链接
                 if github_url.endswith('.git'):
                     github_url = github_url[:-4]
-                
+
                 # 尝试下载main分支
                 zip_url = f"{github_url}/archive/refs/heads/main.zip"
                 logger.info(f"正在从 {zip_url} 下载插件...")
-                
+
                 try:
                     response = requests.get(zip_url, timeout=30)
                     if response.status_code != 200:
@@ -4726,32 +4799,32 @@ def get_bot(wxid):
                         zip_url = f"{github_url}/archive/refs/heads/master.zip"
                         logger.info(f"尝试从master分支下载: {zip_url}")
                         response = requests.get(zip_url, timeout=30)
-                        
+
                     if response.status_code != 200:
                         return {"success": False, "error": f"下载插件失败: HTTP {response.status_code}"}
-                    
+
                     # 解压ZIP文件到临时目录
                     z = zipfile.ZipFile(io.BytesIO(response.content))
                     z.extractall(temp_dir)
-                    
+
                     # 检查插件是否已存在
                     if os.path.exists(plugin_dir):
                         # 如果存在，先备份配置文件
                         if os.path.exists(config_path):
                             with open(config_path, "rb") as f:
                                 config_backup = f.read()
-                        
+
                         # 删除旧目录
                         shutil.rmtree(plugin_dir)
-                    
+
                     # 创建插件目录
                     os.makedirs(plugin_dir, exist_ok=True)
-                    
+
                     # ZIP文件解压后通常会有一个包含所有文件的顶级目录
                     extracted_dirs = os.listdir(temp_dir)
                     if len(extracted_dirs) == 1:
                         extract_subdir = os.path.join(temp_dir, extracted_dirs[0])
-                        
+
                         # 将文件从解压的子目录复制到目标目录
                         for item in os.listdir(extract_subdir):
                             s = os.path.join(extract_subdir, item)
@@ -4769,7 +4842,7 @@ def get_bot(wxid):
                                 shutil.copytree(s, d, dirs_exist_ok=True)
                             else:
                                 shutil.copy2(s, d)
-                    
+
                     # 恢复配置文件（如果有）
                     if config_backup:
                         with open(config_path, "wb") as f:
@@ -4780,7 +4853,7 @@ def get_bot(wxid):
                         if not os.path.exists(config_path):
                             with open(config_path, "w", encoding="utf-8") as f:
                                 f.write("# 插件配置文件\n")
-                    
+
                     # 安装依赖
                     requirements_file = os.path.join(plugin_dir, "requirements.txt")
                     if os.path.exists(requirements_file):
@@ -4792,32 +4865,32 @@ def get_bot(wxid):
                             text=True
                         )
                         stdout, stderr = process.communicate()
-                        
+
                         if process.returncode != 0:
                             logger.warning(f"安装依赖可能失败: {stderr}")
-                    
+
                     # 安装完成后，立即加载插件
                     try:
                         from utils.plugin_manager import plugin_manager
                         await plugin_manager.load_plugin_from_directory(bot_instance, plugin_name)
                     except Exception as e:
                         logger.warning(f"自动加载插件失败，用户需要手动启用: {str(e)}")
-                    
+
                     return {"success": True, "message": "插件安装成功"}
-                    
+
                 except Exception as e:
                     logger.error(f"下载和安装插件失败: {str(e)}")
                     return {"success": False, "error": f"安装失败: {str(e)}"}
-                
+
             finally:
                 # 清理临时目录
                 if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir)
-            
+
         except Exception as e:
             logger.error(f"安装插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
     # 周期性任务：同步本地待审核插件到服务器
     async def sync_pending_plugins():
         """检查本地待审核插件并尝试同步到服务器"""
@@ -4825,15 +4898,15 @@ def get_bot(wxid):
             temp_dir = os.path.join(current_dir, 'pending_plugins')
             if not os.path.exists(temp_dir):
                 return
-            
+
             for filename in os.listdir(temp_dir):
                 if not filename.endswith('.json'):
                     continue
-                
+
                 file_path = os.path.join(temp_dir, filename)
                 with open(file_path, 'r', encoding='utf-8') as f:
                     plugin_data = json.load(f)
-                
+
                 # 尝试发送到服务器
                 async with aiohttp.ClientSession() as session:
                     try:
@@ -4851,7 +4924,7 @@ def get_bot(wxid):
                         continue  # 跳过当前文件，稍后重试
         except Exception as e:
             logger.error(f"同步待审核插件失败: {str(e)}")
-    
+
     # 周期性任务：缓存插件市场数据
     async def cache_plugin_market():
         """从远程服务器缓存插件市场数据到本地"""
@@ -4861,36 +4934,36 @@ def get_bot(wxid):
                     async with session.get('https://api.xybot.icu/plugin_market', timeout=10) as response:
                         if response.status == 200:
                             data = await response.json()
-                            
+
                             # 保存到本地缓存
                             cache_path = os.path.join(current_dir, 'plugin_market_cache.json')
                             with open(cache_path, 'w', encoding='utf-8') as f:
                                 json.dump(data, f, ensure_ascii=False, indent=2)
-                            
+
                             logger.info(f"成功缓存插件市场数据，共{len(data.get('plugins', []))}个插件")
                 except Exception as e:
                     logger.error(f"缓存插件市场数据失败: {e}")
         except Exception as e:
             logger.error(f"缓存插件市场任务失败: {str(e)}")
-    
+
     # 缓存插件市场数据
     @app.on_event("startup")
     async def startup_cache_plugin_market():
         # 应用启动时缓存一次插件市场数据
         asyncio.create_task(cache_plugin_market())
-        
+
         # 设置定时任务每小时更新一次缓存
         async def periodic_cache():
             while True:
                 await asyncio.sleep(3600)  # 每小时执行一次
                 await cache_plugin_market()
-        
+
         # 设置定时任务每10分钟同步一次待审核插件
         async def periodic_sync():
             while True:
                 await asyncio.sleep(600)  # 每10分钟执行一次
                 await sync_pending_plugins()
-        
+
         # 启动定时任务
         asyncio.create_task(periodic_cache())
         asyncio.create_task(periodic_sync())
@@ -4902,7 +4975,7 @@ def get_bot(wxid):
         "DETAIL": "/plugins/",
         "INSTALL": "/plugins/install/",
     }
-    
+
     # API: 安装插件
     @app.post("/api/plugins/install", response_class=JSONResponse)
     async def api_install_plugin(request: Request):
@@ -4910,7 +4983,7 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             # 获取请求数据
             data = await request.json()
@@ -4919,10 +4992,10 @@ def get_bot(wxid):
             plugin_author = data.get('author')
             plugin_version = data.get('version')
             github_url = data.get('github_url')
-            
+
             if not plugin_name or not github_url:
                 return {"success": False, "error": "缺少必要参数"}
-            
+
             # 创建临时目录
             import tempfile
             import shutil
@@ -4932,17 +5005,17 @@ def get_bot(wxid):
             import sys
             import subprocess
             from pathlib import Path
-            
+
             temp_dir = tempfile.mkdtemp()
             plugin_dir = os.path.join("plugins", plugin_name)
-            
+
             try:
                 # 构建 ZIP 下载链接
                 if github_url.endswith('.git'):
                     zip_url = github_url[:-4] + '/archive/refs/heads/main.zip'
                 else:
                     zip_url = github_url + '/archive/refs/heads/main.zip'
-                
+
                 # 下载 ZIP 文件
                 logger.info(f"正在从 {zip_url} 下载插件...")
                 try:
@@ -4955,17 +5028,17 @@ def get_bot(wxid):
                 except Exception as e:
                     logger.error(f"下载插件失败: {str(e)}")
                     return {"success": False, "error": f"下载插件失败: {str(e)}"}
-                
+
                 if response.status_code != 200:
                     return {"success": False, "error": f"下载插件失败: HTTP {response.status_code}"}
-                
+
                 # 解压 ZIP 文件
                 logger.info(f"下载完成，文件大小: {len(response.content)} 字节")
                 logger.info(f"解压 ZIP 文件到: {temp_dir}")
-                
+
                 z = zipfile.ZipFile(io.BytesIO(response.content))
                 z.extractall(temp_dir)
-                
+
                 # 检查插件是否已存在
                 if os.path.exists(plugin_dir):
                     # 如果存在，先备份配置文件
@@ -4974,18 +5047,18 @@ def get_bot(wxid):
                     if os.path.exists(config_path):
                         with open(config_path, "rb") as f:
                             config_backup = f.read()
-                    
+
                     # 删除旧目录
                     shutil.rmtree(plugin_dir)
-                
+
                 # 创建插件目录
                 os.makedirs(plugin_dir, exist_ok=True)
-                
+
                 # ZIP 文件解压后通常会有一个包含所有文件的顶级目录
                 extracted_dirs = os.listdir(temp_dir)
                 if len(extracted_dirs) == 1:
                     extract_subdir = os.path.join(temp_dir, extracted_dirs[0])
-                    
+
                     # 将文件从解压的子目录复制到目标目录
                     for item in os.listdir(extract_subdir):
                         s = os.path.join(extract_subdir, item)
@@ -5003,7 +5076,7 @@ def get_bot(wxid):
                             shutil.copytree(s, d, dirs_exist_ok=True)
                         else:
                             shutil.copy2(s, d)
-                
+
                 # 恢复配置文件（如果有）
                 if config_backup:
                     with open(config_path, "wb") as f:
@@ -5014,7 +5087,7 @@ def get_bot(wxid):
                     if not os.path.exists(config_path):
                         with open(config_path, "w", encoding="utf-8") as f:
                             f.write("# 插件配置文件\n")
-                
+
                 # 安装依赖
                 requirements_file = os.path.join(plugin_dir, "requirements.txt")
                 if os.path.exists(requirements_file):
@@ -5026,19 +5099,19 @@ def get_bot(wxid):
                         text=True
                     )
                     stdout, stderr = process.communicate()
-                    
+
                     if process.returncode != 0:
                         logger.warning(f"安装依赖可能失败: {stderr}")
-                
+
                 # 添加到已安装插件列表
                 from utils.plugin_manager import plugin_manager
                 success = await plugin_manager.load_plugin_from_directory(bot_instance, plugin_name)
-                
+
                 if success:
                     return {"success": True, "message": f"插件 {plugin_name} 安装成功"}
                 else:
                     return {"success": False, "error": f"插件加载失败"}
-                
+
             except Exception as e:
                 logger.error(f"安装插件过程出错: {str(e)}")
                 return {"success": False, "error": str(e)}
@@ -5046,7 +5119,7 @@ def get_bot(wxid):
                 # 清理临时目录
                 if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir)
-            
+
         except Exception as e:
             logger.error(f"安装插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -5087,14 +5160,14 @@ def get_bot(wxid):
             if not token:
                 # 尝试从cookie中获取token
                 token = request.cookies.get('token')
-                
+
             if not token:
                 raise HTTPException(status_code=401, detail="未登录或登录已过期")
-                
+
             # 这里可以添加token验证的逻辑
             # 例如验证token的有效性，检查是否过期等
             # 如果验证失败，抛出HTTPException(status_code=401)
-            
+
             return True
         except Exception as e:
             logger.error(f"认证检查失败: {str(e)}")
@@ -5135,7 +5208,7 @@ def get_bot(wxid):
                             if plugin.__class__.__name__ == "DependencyManager":
                                 dependency_manager = plugin
                                 break
-                        
+
                         if not dependency_manager:
                             await websocket.send_json({
                                 "type": "install_complete",
@@ -5143,26 +5216,26 @@ def get_bot(wxid):
                                 "error": "DependencyManager插件未安装"
                             })
                             continue
-                        
+
                         # 发送进度消息
                         await websocket.send_json({
                             "type": "install_progress",
                             "message": "开始安装插件..."
                         })
-                        
+
                         # 使用DependencyManager的安装方法
                         await dependency_manager._handle_github_install(
                             bot_instance,
                             "admin",  # 使用admin作为chat_id
                             plugin_data["github_url"]
                         )
-                        
+
                         # 发送完成消息
                         await websocket.send_json({
                             "type": "install_complete",
                             "success": True
                         })
-                        
+
                     except Exception as e:
                         logger.error(f"安装插件失败: {str(e)}")
                         await websocket.send_json({
@@ -5179,16 +5252,16 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             # 获取请求数据
             data = await request.json()
             plugin_name = data.get('name')
             github_url = data.get('github_url')
-            
+
             if not plugin_name or not github_url:
                 return {"success": False, "error": "缺少必要参数"}
-            
+
             # 获取DependencyManager插件实例
             dependency_manager = None
             from utils.plugin_manager import plugin_manager
@@ -5196,19 +5269,19 @@ def get_bot(wxid):
                 if plugin.__class__.__name__ == "DependencyManager":
                     dependency_manager = plugin
                     break
-            
+
             if not dependency_manager:
                 return {"success": False, "error": "DependencyManager插件未安装"}
-            
+
             # 使用DependencyManager的安装方法
             await dependency_manager._handle_github_install(
                 bot_instance,
                 "admin",  # 使用admin作为chat_id
                 github_url
             )
-            
+
             return {"success": True, "message": f"插件 {plugin_name} 安装成功"}
-            
+
         except Exception as e:
             logger.error(f"安装插件失败: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -5225,26 +5298,26 @@ def get_bot(wxid):
             if not username:
                 logger.warning("未认证用户尝试访问终端代理")
                 return JSONResponse(status_code=401, content={"error": "未认证"})
-        
+
             logger.debug(f"处理WeTTy代理请求: path={path}, method={request.method}")
-            
+
             # 获取WeTTy服务的URL (默认运行在3000端口)
             # 在Docker环境中使用localhost或127.0.0.1访问同一容器中的服务
             wetty_url = f"http://127.0.0.1:3000/{path}" if path else "http://127.0.0.1:3000/"
-            
+
             # 打印更多调试信息
             logger.info(f"尝试代理请求到WeTTy服务: {wetty_url}")
-            
+
             # 处理可能的WebSocket升级请求
             if "upgrade" in request.headers and request.headers["upgrade"].lower() == "websocket":
                 logger.debug("检测到WebSocket升级请求")
-                
+
                 # 尝试直接代理WebSocket连接
                 try:
                     # 创建到后端WebSocket服务的连接
                     ws_url = f"ws://127.0.0.1:3000/{path}" if path else "ws://127.0.0.1:3000/"
                     logger.info(f"尝试转发WebSocket连接到: {ws_url}")
-                    
+
                     # 创建WebSocket响应
                     return Response(
                         content="",
@@ -5267,25 +5340,25 @@ def get_bot(wxid):
                             "suggestion": "请检查WeTTy服务状态"
                         }
                     )
-        
+
             # 转发普通HTTP请求到WeTTy服务
             try:
                 logger.debug(f"转发HTTP请求到WeTTy: {wetty_url}")
                 logger.debug(f"请求头: {dict(request.headers)}")  # 记录完整请求头
-                
+
                 async with httpx.AsyncClient(timeout=5.0) as client:
                     try:
                         # 转发请求时添加X-Forwarded-*头
                         headers = {
-                            key: value for key, value in request.headers.items() 
+                            key: value for key, value in request.headers.items()
                             if key.lower() not in ["host", "connection"]
                         }
                         headers["X-Forwarded-For"] = request.client.host
                         headers["X-Forwarded-Proto"] = request.url.scheme
                         headers["X-Forwarded-Host"] = request.headers.get("host", "")
-                        
+
                         logger.debug(f"转发头部: {headers}")
-                        
+
                         response = await client.request(
                             method=request.method,
                             url=wetty_url,
@@ -5294,9 +5367,9 @@ def get_bot(wxid):
                             content=await request.body(),
                             follow_redirects=True
                         )
-                        
+
                         logger.debug(f"WeTTy响应状态: {response.status_code}")
-                        
+
                         # 返回从wetty服务获取的响应
                         return Response(
                             content=response.content,
@@ -5308,7 +5381,7 @@ def get_bot(wxid):
                         logger.error(f"请求URL: {wetty_url}")
                         logger.error(f"请求方法: {request.method}")
                         logger.error(f"请求头: {list(request.headers.keys())}")
-                        
+
                         # 尝试使用curl命令检查wetty服务可用性
                         try:
                             import subprocess
@@ -5318,7 +5391,7 @@ def get_bot(wxid):
                             logger.info(f"curl检查结果: {result.stdout}, 错误: {result.stderr}")
                         except Exception as curl_e:
                             logger.error(f"执行curl命令失败: {str(curl_e)}")
-                        
+
                         # 创建一个简单的错误页面
                         error_html = f"""
                         <!DOCTYPE html>
@@ -5352,14 +5425,14 @@ def get_bot(wxid):
                         </html>
                         """
                         return HTMLResponse(content=error_html, status_code=503)
-                
+
             except Exception as e:
                 logger.error(f"转发HTTP请求到WeTTy服务时出错: {str(e)}")
                 return JSONResponse(
                     status_code=502,
                     content={"error": f"转发请求到WeTTy服务失败: {str(e)}"}
                 )
-            
+
         except Exception as e:
             logger.error(f"处理WeTTy代理请求时出错: {str(e)}")
             return JSONResponse(
@@ -5375,9 +5448,9 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return RedirectResponse(url="/login?next=/admin/wetty")
-        
+
         logger.info(f"用户 {username} 通过专用路由访问/admin/wetty终端页面")
-        
+
         # 创建一个简单的代理页面，使用iframe嵌入wetty
         html_content = """
         <!DOCTYPE html>
@@ -5394,7 +5467,7 @@ def get_bot(wxid):
             <div class="message">正在连接终端服务...</div>
             <!-- 使用服务器端代理转发 -->
             <iframe id="terminal" onload="document.querySelector('.message').style.display='none';" src="/admin/wetty/terminal" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
-            
+
             <script>
             // 如果加载失败，显示错误
             document.getElementById('terminal').onerror = function() {
@@ -5406,7 +5479,7 @@ def get_bot(wxid):
         </html>
         """
         return HTMLResponse(content=html_content)
-    
+
     # 处理/admin/wetty/下的所有路径
     @app.get("/wetty")
     @app.get("/admin/wetty/{path:path}")
@@ -5417,13 +5490,13 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"error": "未认证"})
-        
+
         logger.info(f"用户 {username} 访问路径: /admin/wetty/{path}")
-        
+
         # 转发到wetty服务
         wetty_url = f"http://127.0.0.1:3000/{path}"
         logger.info(f"转发请求到wetty服务: {wetty_url}")
-        
+
         # 如果是WebSocket升级请求，提供适当的WebSocket响应
         if "upgrade" in request.headers and request.headers["upgrade"].lower() == "websocket":
             logger.info("检测到WebSocket升级请求，尝试处理")
@@ -5441,7 +5514,7 @@ def get_bot(wxid):
             except Exception as e:
                 logger.error(f"WebSocket升级处理失败: {str(e)}")
                 return JSONResponse(status_code=500, content={"error": f"WebSocket处理失败: {str(e)}"})
-        
+
         # 普通HTTP请求处理
         try:
             # 使用同步请求方式，可能更适合特定场景
@@ -5454,10 +5527,10 @@ def get_bot(wxid):
                     content=await request.body(),
                     follow_redirects=True
                 )
-                
+
                 # 记录响应详情
                 logger.info(f"从wetty服务收到响应: 状态码={response.status_code}, 内容类型={response.headers.get('content-type', '未知')}")
-                
+
                 return Response(
                     content=response.content,
                     status_code=response.status_code,
@@ -5465,7 +5538,7 @@ def get_bot(wxid):
                 )
         except Exception as e:
             logger.error(f"转发请求到wetty服务失败: {str(e)}")
-            
+
             # 创建自定义错误响应
             error_html = f"""
             <!DOCTYPE html>
@@ -5485,7 +5558,7 @@ def get_bot(wxid):
                     <p>错误信息: {str(e)}</p>
                     <p>请确保wetty服务正在运行，或联系管理员</p>
                     <p>
-                        <a href="/admin/wetty">重试</a> | 
+                        <a href="/admin/wetty">重试</a> |
                         <a href="/system">返回系统页面</a>
                     </p>
                 </div>
@@ -5502,9 +5575,9 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return RedirectResponse(url="/login?next=/simple-terminal")
-        
+
         logger.info(f"用户 {username} 访问简易终端页面")
-        
+
         html_content = """
         <!DOCTYPE html>
         <html>
@@ -5533,12 +5606,12 @@ def get_bot(wxid):
                 </div>
                 <div class="message" id="message">正在连接终端服务...</div>
             </div>
-            
+
             <script>
                 document.getElementById('terminal-frame').onload = function() {
                     document.getElementById('message').style.display = 'none';
                 };
-                
+
                 document.getElementById('terminal-frame').onerror = function() {
                     document.getElementById('message').innerHTML = '连接终端服务失败';
                     document.getElementById('message').style.color = 'red';
@@ -5557,9 +5630,9 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return RedirectResponse(url="/login?next=/terminal-proxy")
-        
+
         logger.info(f"用户 {username} 访问终端代理页面")
-        
+
         html_content = """
         <!DOCTYPE html>
         <html>
@@ -5572,13 +5645,13 @@ def get_bot(wxid):
                 .title { font-size: 18px; font-weight: bold; }
                 .content { flex: 1; position: relative; }
                 iframe { width: 100%; height: 100%; border: none; }
-                .message { 
-                    position: absolute; 
-                    top: 50%; 
-                    left: 50%; 
+                .message {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
                     transform: translate(-50%, -50%);
-                    padding: 20px; 
-                    color: white; 
+                    padding: 20px;
+                    color: white;
                     background: rgba(0,0,0,0.7);
                     border-radius: 5px;
                     z-index: 100;
@@ -5598,17 +5671,17 @@ def get_bot(wxid):
                     <div id="terminal-content"></div>
                 </div>
             </div>
-            
+
             <script>
                 // 使用fetch API向服务器请求终端内容
                 async function fetchTerminal() {
                     try {
                         const response = await fetch('/terminal-proxy-content');
-                        
+
                         if (!response.ok) {
                             throw new Error('服务器返回错误: ' + response.status);
                         }
-                        
+
                         const html = await response.text();
                         document.getElementById('terminal-content').innerHTML = html;
                         document.getElementById('message').style.display = 'none';
@@ -5618,7 +5691,7 @@ def get_bot(wxid):
                         document.getElementById('message').style.color = 'red';
                     }
                 }
-                
+
                 // 页面加载后获取终端内容
                 document.addEventListener('DOMContentLoaded', fetchTerminal);
             </script>
@@ -5626,7 +5699,7 @@ def get_bot(wxid):
         </html>
         """
         return HTMLResponse(content=html_content)
-    
+
     # 添加一个终端内容代理，通过服务器代理访问wetty
     @app.get("/terminal-proxy-content", response_class=HTMLResponse)
     async def terminal_proxy_content(request: Request):
@@ -5635,36 +5708,36 @@ def get_bot(wxid):
         username = await check_auth(request)
         if not username:
             return JSONResponse(status_code=401, content={"error": "未认证"})
-        
+
         logger.info(f"用户 {username} 请求终端代理内容")
-        
+
         try:
             # 访问wetty服务
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get("http://127.0.0.1:3000")
-                
+
                 if response.status_code != 200:
                     return HTMLResponse(
                         content=f"<div>无法连接到终端服务，状态码: {response.status_code}</div>",
                         status_code=response.status_code
                     )
-                
+
                 # 获取wetty HTML内容
                 html_content = response.text
-                
+
                 # 修改HTML内容，使资源引用路径正确
                 # 替换相对路径为绝对路径
                 html_content = html_content.replace('href="/', 'href="http://127.0.0.1:3000/')
                 html_content = html_content.replace('src="/', 'src="http://127.0.0.1:3000/')
-                
+
                 # 用iframe包装内容
                 wrapped_content = f"""
-                <iframe src="http://127.0.0.1:3000" style="width:100%;height:100%;border:none;" 
+                <iframe src="http://127.0.0.1:3000" style="width:100%;height:100%;border:none;"
                         sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
                 """
-                
+
                 return HTMLResponse(content=wrapped_content)
-                
+
         except Exception as e:
             logger.error(f"获取终端内容失败: {str(e)}")
             return HTMLResponse(
@@ -5678,7 +5751,7 @@ def get_bot(wxid):
         reminders_dir = os.path.join(current_dir, "reminders")
         if not os.path.exists(reminders_dir):
             os.makedirs(reminders_dir, exist_ok=True)
-        
+
         return os.path.join(reminders_dir, f"{wxid}.json")
 
     @app.get("/api/reminders/{wxid}", response_class=JSONResponse)
@@ -5689,18 +5762,18 @@ def get_bot(wxid):
         if not username:
             logger.error("获取提醒列表失败：未认证")
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             logger.info(f"用户 {username} 请求获取 {wxid} 的提醒列表")
-            
+
             # 读取提醒数据文件
             reminders_file = get_reminder_file_path(wxid)
             logger.info(f"尝试从 {reminders_file} 加载提醒数据")
-            
+
             if not os.path.exists(reminders_file):
                 logger.warning(f"提醒文件不存在: {reminders_file}")
                 return JSONResponse(content={"success": True, "reminders": []})
-            
+
             with open(reminders_file, "r", encoding="utf-8") as f:
                 try:
                     reminders = json.load(f)
@@ -5709,7 +5782,7 @@ def get_bot(wxid):
                 except json.JSONDecodeError as e:
                     logger.error(f"解析 {wxid} 的提醒文件失败: {str(e)}")
                     return JSONResponse(content={"success": False, "error": f"解析提醒数据失败: {str(e)}"})
-        
+
         except Exception as e:
             logger.exception(f"获取用户 {wxid} 的提醒列表失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"获取提醒列表失败: {str(e)}"})
@@ -5722,34 +5795,34 @@ def get_bot(wxid):
         if not username:
             logger.error("获取提醒详情失败：未认证")
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             logger.info(f"用户 {username} 请求获取 {wxid} 的提醒 {id} 详情")
-            
+
             # 读取提醒数据文件
             reminders_file = get_reminder_file_path(wxid)
-            
+
             if not os.path.exists(reminders_file):
                 logger.warning(f"提醒文件不存在: {reminders_file}")
                 return JSONResponse(content={"success": False, "error": "未找到提醒记录"})
-            
+
             with open(reminders_file, "r", encoding="utf-8") as f:
                 try:
                     reminders = json.load(f)
-                    
+
                     # 查找指定ID的提醒
                     for reminder in reminders:
                         if reminder.get("id") == id:
                             logger.info(f"找到提醒 {id} 的详情")
                             return JSONResponse(content={"success": True, "reminder": reminder})
-                    
+
                     logger.warning(f"未找到ID为 {id} 的提醒")
                     return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
-                    
+
                 except json.JSONDecodeError as e:
                     logger.error(f"解析 {wxid} 的提醒文件失败: {str(e)}")
                     return JSONResponse(content={"success": False, "error": f"解析提醒数据失败: {str(e)}"})
-        
+
         except Exception as e:
             logger.exception(f"获取用户 {wxid} 的提醒 {id} 详情失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"获取提醒详情失败: {str(e)}"})
@@ -5762,24 +5835,24 @@ def get_bot(wxid):
     #   if not username:
     #        logger.error("添加提醒失败：未认证")
     #        return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
     #    try:
     #        data = await request.json()
     #        content = data.get("content")
     #        reminder_type = data.get("reminder_type")
     #        reminder_time = data.get("reminder_time")
     #        chat_id = data.get("chat_id")
-            
+
             logger.info(f"用户 {username} 为 {wxid} 添加提醒: {content}, 类型: {reminder_type}, 时间: {reminder_time}, 聊天ID: {chat_id}")
-            
+
             if not all([content, reminder_type, reminder_time, chat_id]):
                 logger.warning(f"添加提醒缺少必要参数: content={content}, type={reminder_type}, time={reminder_time}, chat_id={chat_id}")
                 return JSONResponse(content={"success": False, "error": "缺少必要参数"})
-            
+
             # 读取现有提醒
             reminders_file = get_reminder_file_path(wxid)
             reminders = []
-            
+
             if os.path.exists(reminders_file):
                 try:
                     with open(reminders_file, "r", encoding="utf-8") as f:
@@ -5787,12 +5860,12 @@ def get_bot(wxid):
                 except json.JSONDecodeError:
                     logger.warning(f"提醒文件 {reminders_file} 格式错误，将创建新文件")
                     reminders = []
-            
+
             # 生成新的提醒ID
             new_id = 1
             if reminders:
                 new_id = max(reminder.get("id", 0) for reminder in reminders) + 1
-            
+
             # 创建新提醒
             new_reminder = {
                 "id": new_id,
@@ -5803,17 +5876,17 @@ def get_bot(wxid):
                 "chat_id": chat_id,
                 "is_done": 0
             }
-            
+
             # 添加到提醒列表
             reminders.append(new_reminder)
-            
+
             # 保存提醒文件
             with open(reminders_file, "w", encoding="utf-8") as f:
                 json.dump(reminders, f, ensure_ascii=False, indent=2)
-            
+
             logger.info(f"成功为用户 {wxid} 添加提醒，ID: {new_id}")
             return JSONResponse(content={"success": True, "id": new_id})
-        
+
         except Exception as e:
             logger.exception(f"添加提醒失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"添加提醒失败: {str(e)}"})
@@ -5826,34 +5899,34 @@ def get_bot(wxid):
         if not username:
             logger.error("更新提醒失败：未认证")
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             data = await request.json()
             content = data.get("content")
             reminder_type = data.get("reminder_type")
             reminder_time = data.get("reminder_time")
             chat_id = data.get("chat_id")
-            
+
             logger.info(f"用户 {username} 更新 {wxid} 的提醒 {id}: {content}, 类型: {reminder_type}, 时间: {reminder_time}, 聊天ID: {chat_id}")
-            
+
             if not all([content, reminder_type, reminder_time, chat_id]):
                 logger.warning(f"更新提醒缺少必要参数: content={content}, type={reminder_type}, time={reminder_time}, chat_id={chat_id}")
                 return JSONResponse(content={"success": False, "error": "缺少必要参数"})
-            
+
             # 读取现有提醒
             reminders_file = get_reminder_file_path(wxid)
-            
+
             if not os.path.exists(reminders_file):
                 logger.warning(f"提醒文件不存在: {reminders_file}")
                 return JSONResponse(content={"success": False, "error": "未找到提醒记录"})
-            
+
             try:
                 with open(reminders_file, "r", encoding="utf-8") as f:
                     reminders = json.load(f)
             except json.JSONDecodeError:
                 logger.error(f"提醒文件 {reminders_file} 格式错误")
                 return JSONResponse(content={"success": False, "error": "提醒文件格式错误"})
-            
+
             # 查找并更新提醒
             reminder_updated = False
             for i, reminder in enumerate(reminders):
@@ -5869,18 +5942,18 @@ def get_bot(wxid):
                     }
                     reminder_updated = True
                     break
-            
+
             if not reminder_updated:
                 logger.warning(f"未找到ID为 {id} 的提醒")
                 return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
-            
+
             # 保存更新后的提醒文件
             with open(reminders_file, "w", encoding="utf-8") as f:
                 json.dump(reminders, f, ensure_ascii=False, indent=2)
-            
+
             logger.info(f"成功更新用户 {wxid} 的提醒 {id}")
             return JSONResponse(content={"success": True})
-        
+
         except Exception as e:
             logger.exception(f"更新提醒 {id} 失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"更新提醒失败: {str(e)}"})
@@ -5893,39 +5966,39 @@ def get_bot(wxid):
         if not username:
             logger.error("删除提醒失败：未认证")
             return JSONResponse(status_code=401, content={"success": False, "error": "未认证"})
-        
+
         try:
             logger.info(f"用户 {username} 删除 {wxid} 的提醒 {id}")
-            
+
             # 读取现有提醒
             reminders_file = get_reminder_file_path(wxid)
-            
+
             if not os.path.exists(reminders_file):
                 logger.warning(f"提醒文件不存在: {reminders_file}")
                 return JSONResponse(content={"success": False, "error": "未找到提醒记录"})
-            
+
             try:
                 with open(reminders_file, "r", encoding="utf-8") as f:
                     reminders = json.load(f)
             except json.JSONDecodeError:
                 logger.error(f"提醒文件 {reminders_file} 格式错误")
                 return JSONResponse(content={"success": False, "error": "提醒文件格式错误"})
-            
+
             # 查找并删除提醒
             original_length = len(reminders)
             reminders = [r for r in reminders if r.get("id") != id]
-            
+
             if len(reminders) == original_length:
                 logger.warning(f"未找到ID为 {id} 的提醒")
                 return JSONResponse(content={"success": False, "error": "未找到指定提醒"})
-            
+
             # 保存更新后的提醒文件
             with open(reminders_file, "w", encoding="utf-8") as f:
                 json.dump(reminders, f, ensure_ascii=False, indent=2)
-            
+
             logger.info(f"成功删除用户 {wxid} 的提醒 {id}")
             return JSONResponse(content={"success": True})
-        
+
         except Exception as e:
             logger.exception(f"删除提醒 {id} 失败: {str(e)}")
             return JSONResponse(content={"success": False, "error": f"删除提醒失败: {str(e)}"})

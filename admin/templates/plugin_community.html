@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}插件社区 - 管理后台{% endblock %}
+
+{% block page_title %}插件社区{% endblock %}
+
+{% block page_subtitle %}与开发者和用户交流，分享插件使用体验{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-sm btn-primary me-2" id="btn-refresh-community">
+    <i class="bi bi-arrow-clockwise me-1"></i>刷新
+</button>
+<button class="btn btn-sm btn-outline-success" id="btn-create-post">
+    <i class="bi bi-plus-circle me-1"></i>发布帖子
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- 社区概览卡片 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card dashboard-card" data-aos="fade-up">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people-fill me-2 text-primary"></i>社区概览
+                    </h5>
+                    <div class="community-filter">
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-outline-primary active" data-filter="all">全部</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-filter="discussions">讨论</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-filter="questions">问答</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-filter="showcases">作品展示</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="community-stats mb-4">
+                        <div class="row g-3">
+                            <div class="col-md-3 col-sm-6">
+                                <div class="stat-card bg-light rounded p-3 text-center">
+                                    <div class="stat-icon mb-2">
+                                        <i class="bi bi-people-fill text-primary fs-3"></i>
+                                    </div>
+                                    <h3 class="stat-value mb-1" id="community-users-count">--</h3>
+                                    <div class="stat-label text-muted">社区成员</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="stat-card bg-light rounded p-3 text-center">
+                                    <div class="stat-icon mb-2">
+                                        <i class="bi bi-chat-square-text-fill text-success fs-3"></i>
+                                    </div>
+                                    <h3 class="stat-value mb-1" id="community-posts-count">--</h3>
+                                    <div class="stat-label text-muted">讨论帖子</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="stat-card bg-light rounded p-3 text-center">
+                                    <div class="stat-icon mb-2">
+                                        <i class="bi bi-puzzle-fill text-warning fs-3"></i>
+                                    </div>
+                                    <h3 class="stat-value mb-1" id="community-plugins-count">--</h3>
+                                    <div class="stat-label text-muted">共享插件</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                                <div class="stat-card bg-light rounded p-3 text-center">
+                                    <div class="stat-icon mb-2">
+                                        <i class="bi bi-lightning-fill text-danger fs-3"></i>
+                                    </div>
+                                    <h3 class="stat-value mb-1" id="community-activity-level">--</h3>
+                                    <div class="stat-label text-muted">活跃度</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="community-search mb-4">
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-0">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" class="form-control bg-light border-0" id="community-search-input" placeholder="搜索讨论...">
+                        </div>
+                    </div>
+
+                    <div id="community-posts" class="community-posts">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">加载社区内容中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 热门插件和开发者 -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card dashboard-card" data-aos="fade-up" data-aos-delay="100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-fire me-2 text-danger"></i>热门插件
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="trending-plugins" class="trending-plugins">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted small">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card dashboard-card" data-aos="fade-up" data-aos-delay="200">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-award me-2 text-warning"></i>活跃开发者
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="active-developers" class="active-developers">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted small">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 插件需求区 -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card dashboard-card" data-aos="fade-up" data-aos-delay="300">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-lightbulb-fill me-2 text-warning"></i>插件需求
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" id="btn-add-request">
+                        <i class="bi bi-plus-circle me-1"></i>提交需求
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="plugin-requests" class="plugin-requests">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted small">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- 发布帖子模态框 -->
+<div class="modal fade" id="create-post-modal" tabindex="-1" aria-labelledby="create-post-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="create-post-modal-label">发布新帖子</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-post-form">
+                    <div class="mb-3">
+                        <label for="post-title" class="form-label">标题</label>
+                        <input type="text" class="form-control" id="post-title" placeholder="请输入帖子标题" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="post-category" class="form-label">分类</label>
+                        <select class="form-select" id="post-category" required>
+                            <option value="" selected disabled>请选择分类</option>
+                            <option value="discussion">讨论</option>
+                            <option value="question">问题求助</option>
+                            <option value="showcase">作品展示</option>
+                            <option value="tutorial">教程分享</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="post-content" class="form-label">内容</label>
+                        <textarea class="form-control" id="post-content" rows="6" placeholder="支持Markdown格式..." required></textarea>
+                        <div class="form-text">支持Markdown格式，可以插入代码、图片等</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="post-tags" class="form-label">标签</label>
+                        <input type="text" class="form-control" id="post-tags" placeholder="多个标签用逗号分隔">
+                        <div class="form-text">例如: 插件开发, 问题修复, 功能建议</div>
+                    </div>
+                </form>
+                <div id="post-error" class="alert alert-danger mt-3" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btn-submit-post">
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    发布
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 提交需求模态框 -->
+<div class="modal fade" id="add-request-modal" tabindex="-1" aria-labelledby="add-request-modal-label" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="add-request-modal-label">提交插件需求</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-request-form">
+                    <div class="mb-3">
+                        <label for="request-title" class="form-label">需求标题</label>
+                        <input type="text" class="form-control" id="request-title" placeholder="简短描述您需要的插件功能" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="request-description" class="form-label">详细描述</label>
+                        <textarea class="form-control" id="request-description" rows="4" placeholder="详细描述您的需求，包括使用场景和期望效果..." required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="request-priority" class="form-label">优先级</label>
+                        <select class="form-select" id="request-priority">
+                            <option value="low">低 - 有空再做</option>
+                            <option value="medium" selected>中 - 正常优先级</option>
+                            <option value="high">高 - 急需此功能</option>
+                        </select>
+                    </div>
+                </form>
+                <div id="request-error" class="alert alert-danger mt-3" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btn-submit-request">
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    提交
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/admin/static/js/plugin_community.js"></script>
+{% endblock %}
