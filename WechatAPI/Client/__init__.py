@@ -6,7 +6,6 @@ from .hongbao import HongBaoMixin
 from .login import LoginMixin
 from .message import MessageMixin
 from .protect import protector
-from .protect import protector
 from .tool import ToolMixin
 from .user import UserMixin
 

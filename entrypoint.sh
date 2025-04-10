@@ -30,7 +30,8 @@ sleep 3
 
 # 启动主应用
 echo "启动XXXBot主应用..."
-exec python main.py
+# 使用新的Docker启动脚本，它会自动启动代理服务器和机器人
+exec python docker_start.py
 
 # 保持容器运行
 wait

@@ -84,8 +84,15 @@ class ToolMixin(WechatAPIClientBase):
             raise UserLoggedOut("请先登录")
 
         async with aiohttp.ClientSession() as session:
+            # 设置请求超时时间为5分钟，以处理大文件
+            timeout = aiohttp.ClientTimeout(total=300)  # 5分钟
+
             json_param = {"Wxid": self.wxid, "AttachId": attach_id}
-            response = await session.post(f'http://{self.ip}:{self.port}/DownloadAttach', json=json_param)
+            response = await session.post(
+                f'http://{self.ip}:{self.port}/DownloadAttach',
+                json=json_param,
+                timeout=timeout
+            )
             json_resp = await response.json()
 
             if json_resp.get("Success"):

@@ -1,0 +1,183 @@
+[basic]
+# 是否启用插件
+enable = true
+# 触发关键词，以此开头的消息将被转发到AI处理
+trigger_keyword = "agent"
+# 是否在群聊中自动响应被@消息
+respond_to_at = false
+# 是否允许私聊使用
+allow_private_chat = true
+
+
+# 屏蔽机制
+[block]
+sensitive_words = ["暴力", "色情", "政治", "违法"]  # 敏感词屏蔽列表
+block_continuous_request = true     # 是否屏蔽连续请求
+block_continuous_timeout = 5        # 连续请求屏蔽超时(秒)
+
+# --- 原有 OpenAI/Chargpt API 配置 (注释掉) ---
+# [api]
+# openai_api_token = "YOUR_OPENAI_API_KEY"  # 替换为你的OpenAI API密钥
+# base_url = "https://api.openai.com/v1"
+
+# --- 新增 Gemini API 配置 ---
+[gemini]
+api_key = "AIzaSyDlBc3Rd_Fu2i43l95yWY_kN0rnhXRRmHM"      # 填入你的 Google AI Studio 或 Vertex AI API Key
+# Gemini API 端点 (Google AI Studio 示例, Vertex AI 不同)
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+
+[agent]
+# 代理配置
+default_model = "gemini-2.0-flash"  # 默认使用的 Gemini 模型
+max_steps = 10            # 最大执行步骤数
+max_tokens = 8192         # 每次请求的最大输出token数 (Gemini 通常有更大的限制)
+temperature = 0.7         # 温度参数 (建议值，可以调整)
+
+[mcp]
+# MCP代理配置
+enable_mcp = true        # 是否启用MCP代理
+thinking_steps = 3       # 思考步骤数量 (可以适当减少测试Gemini性能)
+thinking_prompt = "请深入思考这个问题，分析多个角度并考虑是否需要查询额外信息，然后提供具体的解决方案。思考要全面但不要在最终回答中展示思考过程。"
+task_planning = true     # 是否启用任务规划 (此项在当前MCP实现中可能未完全使用)
+
+[tools]
+# 工具配置
+enable_search = true     # 是否启用搜索工具
+enable_calculator = true # 是否启用计算器工具
+enable_datetime = true   # 是否启用日期时间工具
+enable_weather = true    # 是否启用天气工具(需要API密钥)
+enable_code = true       # 是否启用代码工具
+search_engine = "serper"  # 搜索引擎类型: bing 或 serper
+bing_api_key = ""        # Bing搜索API密钥
+serper_api_key = "0f7eb776cecdce862cecd315c228a0cae1fa70d5"      # Serper.dev API密钥
+enable_stock = true      # 是否启用股票工具
+stock_data_cache_days = 60  # 股票数据缓存天数
+enable_drawing = true    # 是否启用绘图工具
+
+# 代码工具配置
+[code]
+timeout = 10             # 代码执行超时时间(秒)
+max_output_length = 2000 # 最大输出长度
+enable_exec = true       # 是否允许执行代码(设为false只生成不执行)
+
+# 绘图工具配置
+[drawing]
+api_base = "https://www.modelscope.cn/api/v1/muse/predict"  # ModelScope API基础URL
+max_wait_time = 240      # 绘图任务等待最大时间(秒)
+default_model = "rioko" # 默认模型类型：default, anime, realistic
+default_ratio = "3:4"    # 默认图像比例：1:1, 4:3, 3:4, 16:9, 9:16
+modelscope_cookies = "acw_tc=0b62600617436959989742286e7058e02fe6264ae51ef13d27395b1de5f97c; csrf_session=MTc0MzY5NjAwMHxEWDhFQVFMX2dBQUJFQUVRQUFBeV80QUFBUVp6ZEhKcGJtY01DZ0FJWTNOeVpsTmhiSFFHYzNSeWFXNW5EQklBRUVScFdHRnFXR1EyVEVSQ1NWUlhVV289fPIRGEw3X_nzqJmuBT-oLGbUjqNILwDxXaQtYfJMp2wx; _samesite_flag_=true; cookie2=1640d621a406081d94d46b035183ecb5; t=f0c53d719cc90fda3b0f8b46f7525ff4; _tb_token_=ee17e73f57734; csrf_token=SMy5xLPCBJ-Lv_iqJ1ozYajhnHE%3D; csg=6a0cb63c; m_session_id=a48f5b6e-86c2-4ac9-9538-798c8aba7687; h_uid=2217913099749; tfstk=gyQtAtXyiJ2gU88uSPZnoN6Y2iVnlZCNvO5SoKvic9BdN_kMc1YMMqBFgNvMo5SpH9pU_1bgQ9UAKtBGjNPNDqCAHqfMSscNYTfSSNqwoqLwuEwuEz4u_182lM-SGAlwRIRkGrxjfDTwiTKKGr4l_1lI6xNlAzDABSXMlK6XfHOB_pM6hC6XA2O2dVOj5IMQ9IJBlCTjlpaBwIHjcq6fOWdD1Eg6ftTItG2vdf9mkgNAby_0wV0tWwd9XK3csqKFc4Y6FSJSz4JOBhnG1p3jlwInauTJCulH3FvNaCB4zV86DG69OEUxRFBN1ZtdoJcB2eJHVN18VW1dkdK55HhrPFCeGttAY83k6Fjp2NIagv11EdIW7sc8I6KRv3RBAjn6Sgflu3__WYJH4IBJwOHO4r7lyFb-ELdmfWFK0m-6T2PCjED80fFv9LVTkmo2YWRpEWFK0m-6TBpu6Snq0HPF.; isg=BL6-_ZO4VYf1WYGjKEpVLwiuD9QA_4J55lnRBWjJ9INoC0_lh4v0iMytg9fHM3qR"  # ModelScope网站Cookie，用于认证
+modelscope_csrf_token = "SMy5xLPCBJ-Lv_iqJ1ozYajhnHE=" # ModelScope网站CSRF令牌
+
+# 预设LoRA模型列表
+[[drawing.lora_models]]
+name = "rioko"  # 模型名称，可在命令中直接使用
+model_id = "85727"  # ModelScope模型ID
+model_path = "modelUrl=modelscope://zhouzl2025/t5?revision=ckpt-20"  # 完整模型路径
+scale = 0.7  # 默认权重
+
+[[drawing.lora_models]]
+name = "宫崎骏"  # 替换为你想要的名称
+model_id = "80982"  # 替换为实际模型ID
+model_path = "modelscope://author/MusePublic/489?revision=ckpt-20"  # 替换为实际模型路径 
+scale = 0.8  # 默认权重
+
+[search]
+# 搜索工具配置
+bing_url = "https://api.bing.microsoft.com/v7.0/search"  # Bing搜索API地址
+serper_url = "https://google.serper.dev/search"          # Serper.dev搜索API地址
+
+[weather]
+# 天气工具配置
+api_key = "7e06hg1gtajttpfuvrlltfrs3zhnwb"             # ALAPI天气API密钥(token)
+base_url = "https://v3.alapi.cn/api"  # ALAPI基础URL
+weather_url = "https://v3.alapi.cn/api/tianqi"          # 实时天气API地址
+forecast_url = "https://v3.alapi.cn/api/tianqi/seven"   # 7天天气预报API地址
+index_url = "https://v3.alapi.cn/api/tianqi/index"      # 天气指数API地址
+
+[memory]
+# 记忆配置
+enable_memory = false     # 是否启用记忆功能
+max_history = 20         # 最大历史记录条数
+separate_context = true  # 是否为不同会话维护单独的上下文
+memory_expire_hours = 24 # 记忆保留时间(小时)，超过此时间的对话将被遗忘
+
+# 敏感词过滤
+[blocking]
+enable = false                       # 是否启用敏感词过滤
+sensitive_words = ["敏感词1"] # 敏感词列表
+
+# 连续请求屏蔽 (将此部分合并或确保配置正确，这里假设保留上面 [block] 的内容)
+# [block] # <--- 如果上面的 [blocking] 是正确的，这个 [block] 可能也需要调整或合并
+# block_continuous_request = true     # 是否屏蔽连续请求
+# block_continuous_timeout = 5        # 连续请求屏蔽超时(秒)
+
+# --- 新增 TTS 配置节 ---
+[tts]
+# 是否启用 TTS 功能
+enable = false
+# TTS API 的 Base URL (SDK 通常不需要，但保留以备参考)
+base_url = "https://api.fish.audio"
+# TTS API 的 Key
+api_key = "f33faadfae504bd0be2e6ff988d7785c"
+# --- 指定你的自定义模型 ID --- 
+reference_id = "6ce7ea8ada884bf3889fa7c7fb206691" 
+# model = "speech-1.5" # 使用 reference_id 时，这个通用模型名通常不需要
+# 默认输出格式
+format = "mp3"
+# 默认 MP3 比特率
+mp3_bitrate = 128 
+
+# --- 新增 MiniMax TTS 配置节 ---
+[minimax_tts]
+# 是否启用 MiniMax TTS 功能
+enable = false
+# MiniMax T2A v2 API 的 Base URL
+base_url = "https://api.minimax.chat/v1/t2a_v2"
+# MiniMax API Key
+api_key = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLlpI_mpaAiLCJVc2VyTmFtZSI6IuWkj-aloCIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxOTA2NjE2MjQxNDU2NDMxNTk2IiwiUGhvbmUiOiIxODExMzU2NTU2MCIsIkdyb3VwSUQiOiIxOTA2NjE2MjQxNDQ4MDQyOTg4IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMDQtMDMgMTA6Mzc6NTciLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.JSLH5KjbAzfxCPMLtyzO-xXl8_itGBXaUV1uIFm1-gi8Y_qtZQ7NZBug7UrtOYLzrqk7_bitxyDEgAWrvZD6OHLWjcq8KobhGN-7q43jkAF4NzRAHenKhvzO3G3J7Mr_NsPziKOJIBud-dzqWtlT4AwAC5X_fGc4UzSNcVD3yd1ZescYDHdIWk1QoT_VuL90Zq84gekt6QzKA56b6xTrzulyoQH6NK_EnUmYuIG6LFEcz2Xn17raf0fibNVsE1tzTm_c73bChdp7s8yBxpR4ja8z3msVK2ho94ROWiU_poalEulPyEqUe4udWOOVbfrXwer7xiBBIImFrkD0In2gpA"
+# MiniMax Group ID
+group_id = "1906616241448042988"
+# 默认模型
+model = "speech-02-hd"
+# 默认声音ID
+voice_id = "saoqi_yujie"
+# 默认输出格式
+format = "mp3"
+# 默认采样率
+sample_rate = 32000
+# 默认比特率
+bitrate = 128000
+# 语速 (0.5-2.0)
+speed = 0.6
+# 音量 (0.5-2.0)
+vol = 1.0
+# 音调 (-12.0-12.0)
+pitch = 0.0
+# 默认支持语言增强模式
+language_boost = "auto" 
+# 情绪参数，可选值: "happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"
+emotion = "neutral" 
+# --- 新增提示词配置 ---
+[prompts]
+# 是否启用自定义提示词
+enable_custom_prompt = true
+# 系统提示词，会被添加到底层MCP提示词之后
+system_prompt = """
+
+"""
+# 对话开始时的欢迎语（可选）
+#greeting = "您好！我是OpenManus智能助手，有什么可以帮您的吗？" 
+
+[tool.metaphor]
+api_key = "1a986eca-d50a-4d3d-bad5-853db796761a" # Metaphor API Key，用于意向搜索，请前往 https://dashboard.metaphor.systems/ 申请
+
+[firecrawl]
+api_key = "fc-d751bd417cf44bf4835dd131f41cd96f" # Firecrawl API Key, 请前往 https://firecrawl.dev/ 获取
+enable = true # 是否启用 Firecrawl 工具
+default_format = "markdown" # 默认输出格式: markdown, html, json
+default_limit = 10 # 默认爬取页面数量限制
+timeout = 60 # 请求超时时间(秒)
+
+
+

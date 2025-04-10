@@ -1,0 +1,21 @@
+[YujieSajiao]
+# 插件开关
+enable = true
+
+# API地址
+api_url = "https://api.317ak.com/API/yy/yjsj.php"
+
+# 触发词列表
+trigger_words = [
+    "御姐撒娇",
+    "御姐语音",
+    "来点御姐",
+    "撒个娇"
+]
+
+# 是否使用ffmpeg处理语音文件
+# 如果设置为false，将直接使用原始文件
+use_ffmpeg = true
+
+# HTTP代理（可选）
+# http_proxy = ""
